@@ -24,8 +24,15 @@ if [[ -z "$ZIP" ]]; then
     echo "Downloading latest release of $REPO…"
     curl -fL "https://github.com/$REPO/releases/latest/download/$NAME.zip" -o "$ZIP"
 fi
-unzip -tq "$ZIP" >/dev/null
-unzip -l "$ZIP" | grep -q "$NAME/plugin.json" || { echo "$ZIP is not a $NAME package" >&2; exit 1; }
+# SteamOS ships bsdtar (libarchive); unzip may be missing.
+if command -v bsdtar >/dev/null 2>&1; then
+    list() { bsdtar -tf "$1"; }; extract() { sudo bsdtar -xf "$1" -C "$2"; }
+elif command -v unzip >/dev/null 2>&1; then
+    list() { unzip -Z1 "$1"; }; extract() { sudo unzip -oq "$1" -d "$2"; }
+else
+    list() { python3 -m zipfile -l "$1"; }; extract() { sudo python3 -m zipfile -e "$1" "$2"; }
+fi
+list "$ZIP" | grep -q "$NAME/plugin.json" || { echo "$ZIP is not a valid $NAME package (broken download?)" >&2; exit 1; }
 
 # Keep a copy of settings/mappings before touching anything.
 if [[ -d "$DECKY_HOME/settings/$NAME" ]]; then
@@ -36,7 +43,7 @@ fi
 
 echo "Installing to $PLUGINS/$NAME (sudo)…"
 sudo rm -rf "$PLUGINS/$NAME"
-sudo unzip -q "$ZIP" -d "$PLUGINS"
+extract "$ZIP" "$PLUGINS"
 sudo chmod 755 "$PLUGINS/$NAME/bin/moonlight-runner.sh"
 sudo systemctl restart plugin_loader
 echo "Done. Return to Gaming Mode; Moondeck Apollo appears in the Decky menu."
