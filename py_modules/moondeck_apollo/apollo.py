@@ -19,7 +19,7 @@ import http.client
 import json
 import ssl
 import uuid
-import xml.etree.ElementTree as ET
+from xml.parsers import expat
 from typing import Any, Dict, List, Optional, Tuple
 
 from .mapping import steam_appids_in_app
@@ -59,15 +59,41 @@ def probe_serverinfo(address: str, port: int = 47989, timeout: float = 2.5) -> D
     return parse_serverinfo(body)
 
 
+def _xml_children(body: bytes) -> Dict[str, str]:
+    """Text of the root element's direct children.
+
+    Uses expat directly: ``xml.etree`` is not bundled in Decky's frozen Python.
+    """
+    values: Dict[str, str] = {}
+    stack: List[str] = []
+    text: List[str] = []
+
+    def start(name: str, _attrs: Dict[str, str]) -> None:
+        stack.append(name)
+        text.clear()
+
+    def end(name: str) -> None:
+        if len(stack) == 2:
+            values.setdefault(name, "".join(text).strip())
+        stack.pop()
+        text.clear()
+
+    parser = expat.ParserCreate()
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = text.append
+    parser.Parse(body, True)
+    return values
+
+
 def parse_serverinfo(body: bytes) -> Dict[str, Any]:
     try:
-        root = ET.fromstring(body)
-    except ET.ParseError as e:
+        values = _xml_children(body)
+    except expat.ExpatError as e:
         return {"online": False, "error": f"Invalid serverinfo XML: {e}"}
 
     def text(tag: str) -> str:
-        el = root.find(tag)
-        return (el.text or "").strip() if el is not None else ""
+        return values.get(tag, "")
 
     mac = text("mac")
     current_game = text("currentgame")
@@ -81,7 +107,7 @@ def parse_serverinfo(body: bytes) -> Dict[str, Any]:
         "current_game": int(current_game) if current_game.isdigit() else 0,
         # Apollo-only field; absent on Sunshine.
         "virtual_display": text("VirtualDisplayCapable").lower() == "true",
-        "is_apollo": root.find("VirtualDisplayCapable") is not None,
+        "is_apollo": "VirtualDisplayCapable" in values,
     }
 
 

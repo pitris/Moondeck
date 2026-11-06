@@ -17,11 +17,11 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-import shlex
 import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
 from .procenv import host_env
+from .shellutil import split as shell_split
 
 # "Name",ID,HDR,AppCollector,Hidden,DirectLaunch,"BoxartURL"
 _CSV_ROW_RE = re.compile(
@@ -71,7 +71,7 @@ def build_stream_argv(settings: Dict[str, Any], app_name: str) -> List[str]:
     if ml.get("quit_app_after"):
         argv.append("--quit-after")
     if ml.get("extra_args"):
-        argv += shlex.split(ml["extra_args"])
+        argv += shell_split(ml["extra_args"])
     return argv
 
 

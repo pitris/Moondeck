@@ -23,8 +23,8 @@ jobs:
           cache: pnpm
       - uses: actions/setup-python@v5
         with:
-          # Decky Loader bundles Python 3.11
-          python-version: "3.11"
+          # Decky Loader v3.3.1 bundles Python 3.14 (tests/test_decky_runtime.py needs it)
+          python-version: "3.14"
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm run test:frontend

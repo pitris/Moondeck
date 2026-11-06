@@ -9,6 +9,7 @@
 | Full backend launch flow: name match, exact AppID match, unmapped → manual mapping, deleted app, create app on PC, offline without/with WoL (timeout), Moonlight not paired/missing, cancel | integration tests with a fake Apollo and a **fake Moonlight executable** | automated |
 | `moonlight-runner.sh`: executes the request, one-shot request, stale request ignored, hostile app names cannot inject shell commands, failure result, SIGTERM forwarding, `LD_LIBRARY_PATH` scrubbing | the real script, run as Steam would run it | automated |
 | `main.py` loaded the way Decky loads it, from the extracted release zip | fake `decky` module | automated |
+| Backend imports only modules that exist in **Decky's frozen Python** (list extracted from the v3.3.1 `PluginLoader` binary by `scripts/decky-modules.py`) | `tests/test_decky_runtime.py`, Python 3.14 | automated (added after `shlex`/`xml.etree` crashed the backend on a real device) |
 | Frontend: button placement in a Steam-shaped page tree (both positions, no duplicates, skipped app types, unknown layout), route patch/unpatch, hidden shortcut create/reuse/remove, launch flow (picker → mapping → RunGame → back navigation → session watch), offline/wake/cancel, Steam not starting the runner, all settings pages render | Vitest with mocked `@decky/ui`, `@decky/api` and Steam globals | automated |
 | TypeScript type check against `@decky/ui` 4.16.5 typings, Rollup bundle | `tsc`, `rollup` | automated |
 | install / uninstall / restore scripts | run in a sandboxed `$HOME` with `sudo`/`systemctl` shims | manually verified |
@@ -41,7 +42,7 @@ pnpm run package                # builds dist/ and out/moondeck-apollo.zip
 pnpm run test:backend           # python3 -m unittest (uses openssl to make a test certificate)
 ```
 
-CI (`.github/workflows/ci.yml`) runs all of the above on Python 3.11 (the
+CI (`.github/workflows/ci.yml`) runs all of the above on Python 3.14 (the
 version Decky bundles) and Node 22, and attaches the zip to tagged releases.
 
 ## On-device acceptance checklist (Legion Go S)

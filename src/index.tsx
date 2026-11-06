@@ -11,7 +11,7 @@ import { settingsStore, useSettings } from "./store";
 
 const QuickAccess = () => {
   const s = useSettings();
-  const [status, refresh, loading] = useStatus();
+  const [status, refresh, loading, error] = useStatus();
   const [busy, setBusy] = useState(false);
   const host = s?.host;
 
@@ -20,7 +20,7 @@ const QuickAccess = () => {
       <PanelSectionRow>
         <Field
           label={host?.moonlight_name || host?.address || "Not configured"}
-          description={!host?.address ? "Open settings to add your PC" : status ? (status.host.online ? "Online" : "Offline") : "Checking…"}
+          description={error && !status ? error : !host?.address ? "Open settings to add your PC" : status ? (status.host.online ? "Online" : "Offline") : error ?? "Checking…"}
         />
       </PanelSectionRow>
       {status && !status.moonlight.installed && (

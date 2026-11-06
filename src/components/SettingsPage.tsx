@@ -45,26 +45,38 @@ function ago(ts: number): string {
   return new Date(ts * 1000).toLocaleString();
 }
 
-export function useStatus(): [Status | null, () => Promise<void>, boolean] {
+export const BACKEND_DEAD =
+  "Plugin backend is not responding. Restart the device; if it persists, send ~/homebrew/logs/moondeck-apollo/ (or `journalctl -u plugin_loader`).";
+
+/** Rejects if the backend does not answer in time (a crashed backend never answers). */
+export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
+}
+
+export function useStatus(): [Status | null, () => Promise<void>, boolean, string | null] {
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const refresh = async () => {
     setLoading(true);
     try {
-      const r = await getStatus();
+      const r = await withTimeout(getStatus(), 25000);
       if (r.ok) setStatus(r);
+      setError(null);
+    } catch {
+      setError(BACKEND_DEAD);
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => { refresh(); }, []);
-  return [status, refresh, loading];
+  return [status, refresh, loading, error];
 }
 
 const HostPage = () => {
   const s = useSettings();
-  const [status, refresh, loading] = useStatus();
-  if (!s) return null;
+  const [status, refresh, loading, error] = useStatus();
+  if (!s) return <DialogBody><Field label="Moondeck Apollo" description={error ?? "Loading settings…"} /></DialogBody>;
   const h = s.host;
 
   const importHosts = async () => {
@@ -90,8 +102,8 @@ const HostPage = () => {
       <Section title="Status">
         <Field label="Gaming PC" description={status?.host.online
           ? `Online – ${status.host.hostname || h.address}${status.host.is_apollo ? " (Apollo)" : ""} ${status.host.appversion ?? ""}`
-          : status ? `Offline${status.host.error ? ` – ${status.host.error}` : ""}` : "Checking…"} />
-        <Field label="Moonlight" description={status ? (status.moonlight.installed ? `Installed (${status.moonlight.method})` : `Not found – ${status.moonlight.detail}`) : "Checking…"} />
+          : status ? `Offline${status.host.error ? ` – ${status.host.error}` : ""}` : error ?? "Checking…"} />
+        <Field label="Moonlight" description={status ? (status.moonlight.installed ? `Installed (${status.moonlight.method})` : `Not found – ${status.moonlight.detail}`) : error ?? "Checking…"} />
         <ButtonItem layout="below" disabled={loading} onClick={refresh}>{loading ? "Checking…" : "Check again"}</ButtonItem>
       </Section>
       <Section title="Apollo host">
