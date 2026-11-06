@@ -5,7 +5,9 @@ import { Placement, resolveApp } from "../backend";
 import { useSettings } from "../store";
 import { LaunchTarget, isBusy, launchWithMoonlight, onBusyChange } from "../launcher";
 import { pickApp } from "./modals";
-import { setMapping, getApps } from "../backend";
+import { setMapping, getApps, log } from "../backend";
+
+let mountLogged = false;
 
 const CSS = `
 .mda-row { display: flex; align-items: center; gap: 10px; box-sizing: border-box; }
@@ -86,6 +88,20 @@ export const MoonlightButton = ({ appid, name, isSteamGame, placement }: Props) 
   useEffect(() => {
     refreshHint();
   }, [appid, settings?.mappings, settings?.apps_cache.fetched_at]);
+
+  // Diagnostics: confirm the button really mounted and where it is on screen.
+  useEffect(() => {
+    if (mountLogged) return;
+    mountLogged = true;
+    setTimeout(() => {
+      const el = ref.current;
+      const r = el?.getBoundingClientRect();
+      const btn = el?.querySelector(".mda-launch")?.getBoundingClientRect();
+      log("info", `button mounted for ${name}: container ${r ? `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}` : "none"}, ` +
+        `button ${btn ? `${Math.round(btn.x)},${Math.round(btn.y)} ${Math.round(btn.width)}x${Math.round(btn.height)}` : "none"}, ` +
+        `parent ${el?.parentElement?.className ?? "?"}, window ${window.innerWidth}x${window.innerHeight}`);
+    }, 1500);
+  }, []);
 
   const changeMapping = async () => {
     const cache = await getApps();
