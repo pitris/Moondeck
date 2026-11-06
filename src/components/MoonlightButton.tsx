@@ -1,0 +1,133 @@
+import { DialogButton, Focusable, appDetailsClasses, appDetailsHeaderClasses } from "@decky/ui";
+import { useEffect, useRef, useState } from "react";
+import { MoonIcon } from "./icons";
+import { Placement, resolveApp } from "../backend";
+import { useSettings } from "../store";
+import { LaunchTarget, isBusy, launchWithMoonlight, onBusyChange } from "../launcher";
+import { pickApp } from "./modals";
+import { setMapping, getApps } from "../backend";
+
+const CSS = `
+.mda-row { display: flex; align-items: center; gap: 10px; box-sizing: border-box; }
+.mda-row.mda-below { padding: 10px 2.8vw 4px; }
+.mda-anchor { position: relative; height: 0; z-index: 7; }
+.mda-anchor .mda-row { position: absolute; right: 2.8vw; bottom: 14px; }
+.mda-row .mda-launch.DialogButton {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: auto; min-width: 200px; height: 48px; padding: 0 28px;
+  font-size: 18px; font-weight: 700; letter-spacing: 0.02em; border-radius: 3px;
+  color: #fff; background: linear-gradient(90deg, #3f51b5 0%, #5c6bc0 100%);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: filter 120ms ease, transform 120ms ease;
+}
+.mda-row .mda-launch.DialogButton.gpfocus,
+.mda-row .mda-launch.DialogButton:hover { filter: brightness(1.25); transform: scale(1.02); }
+.mda-row .mda-launch.DialogButton:disabled { filter: grayscale(0.6) brightness(0.8); }
+.mda-row .mda-more.DialogButton {
+  width: 48px; min-width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; border-radius: 3px;
+}
+.mda-hint { font-size: 13px; opacity: 0.7; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+
+interface Props extends LaunchTarget {
+  placement: Placement;
+}
+
+function useBusy(): boolean {
+  const [b, setB] = useState(isBusy());
+  useEffect(() => onBusyChange(setB), []);
+  return b;
+}
+
+/** Hide the hero overlay while the header plays its fullscreen transition. */
+function useHeroVisible(ref: React.RefObject<HTMLDivElement | null>, enabled: boolean): boolean {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    if (!enabled) return;
+    const parent = ref.current?.parentElement;
+    const header = parent ? Array.from(parent.children).find((c) => c.className.includes(appDetailsClasses.Header)) : undefined;
+    const capsule = header
+      ? Array.from(header.children).find((c) => c.className.includes(appDetailsHeaderClasses.TopCapsule))
+      : undefined;
+    if (!capsule) return;
+    const fullscreen = [
+      appDetailsHeaderClasses.FullscreenEnterStart,
+      appDetailsHeaderClasses.FullscreenEnterActive,
+      appDetailsHeaderClasses.FullscreenEnterDone,
+      appDetailsHeaderClasses.FullscreenExitStart,
+      appDetailsHeaderClasses.FullscreenExitActive,
+    ].filter(Boolean);
+    const update = () => setVisible(!fullscreen.some((c) => capsule.className.includes(c)));
+    const mo = new MutationObserver(update);
+    mo.observe(capsule, { attributes: true, attributeFilter: ["class"] });
+    update();
+    return () => mo.disconnect();
+  }, [enabled]);
+  return visible;
+}
+
+export const MoonlightButton = ({ appid, name, isSteamGame, placement }: Props) => {
+  const settings = useSettings();
+  const busy = useBusy();
+  const [hint, setHint] = useState<string>("");
+  const ref = useRef<HTMLDivElement | null>(null);
+  const heroVisible = useHeroVisible(ref, placement === "hero");
+
+  const refreshHint = async () => {
+    try {
+      const r = await resolveApp(appid, name);
+      if (!r.ok) return;
+      setHint(r.app_name ? `Apollo: ${r.app_name}` : r.apps.length ? "Choose Apollo app on first launch" : "");
+    } catch {
+      /* hint is optional */
+    }
+  };
+
+  useEffect(() => {
+    refreshHint();
+  }, [appid, settings?.mappings, settings?.apps_cache.fetched_at]);
+
+  const changeMapping = async () => {
+    const cache = await getApps();
+    const r = await resolveApp(appid, name);
+    const apps = cache.ok ? cache.apps.filter((a) => !a.hidden).map((a) => a.name) : [];
+    const choice = await pickApp({
+      gameName: name,
+      reason: r.ok && r.app_name ? `Currently: ${r.app_name}` : "Not mapped yet",
+      candidates: r.ok ? r.candidates : [],
+      apps,
+      canCreate: false,
+    });
+    if (choice?.kind === "map") {
+      await setMapping(appid, choice.name, name);
+      refreshHint();
+    }
+  };
+
+  const label = settings?.ui.label || "Moonlight";
+  const row = (
+    <Focusable className={`mda-row ${placement === "below_play" ? "mda-below" : ""}`} flow-children="horizontal">
+      <DialogButton
+        className="mda-launch"
+        disabled={busy}
+        onClick={() => launchWithMoonlight({ appid, name, isSteamGame })}
+        onSecondaryButton={changeMapping}
+        onSecondaryActionDescription="Change Apollo app"
+      >
+        <MoonIcon />
+        <span>{busy ? "Starting…" : label}</span>
+      </DialogButton>
+      <DialogButton className="mda-more" onClick={changeMapping} aria-label="Change Apollo app">
+        ⋯
+      </DialogButton>
+      {placement === "below_play" && hint && <div className="mda-hint">{hint}</div>}
+    </Focusable>
+  );
+
+  return (
+    <div ref={ref} className={placement === "hero" ? "mda-anchor" : undefined} id="moondeck-apollo">
+      <style>{CSS}</style>
+      {(placement !== "hero" || heroVisible) && row}
+    </div>
+  );
+};

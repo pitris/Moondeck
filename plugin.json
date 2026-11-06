@@ -1,0 +1,11 @@
+{
+  "name": "Moondeck Apollo",
+  "author": "pitris",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["moonlight", "apollo", "sunshine", "streaming"],
+    "description": "Adds a Moonlight launch button to every game page in Steam Gaming Mode and streams that game from your Apollo PC.",
+    "image": ""
+  }
+}
