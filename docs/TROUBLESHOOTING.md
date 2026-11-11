@@ -14,3 +14,4 @@
 | Moonlight window black / not focused | Report it with the plugin log. As a check, add Moonlight as a normal non-Steam game and see whether it is focused there. |
 | Controls feel wrong in Moonlight | Change the layout of the hidden shortcut: Library → Hidden → Moonlight (Apollo) → controller icon. Use the **Gamepad** template. |
 | Stream ends straight away with an error dialog | **Settings → Diagnostics** shows Moonlight's output (e.g. "Failed to find application …"). |
+| The stream shows the PC's normal screen instead of the game / the virtual display is not used | The Apollo app lacks **Always create Virtual Display**. Press ⋯ → *Add “Game” to Apollo (or repair it)* to turn it on, or enable it in Apollo's web UI (Applications → app → Always create Virtual Display), or once for the whole device (client list → your Legion → Always create virtual display). |

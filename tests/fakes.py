@@ -71,8 +71,18 @@ class _Handler(http.server.BaseHTTPRequestHandler):
                 return self._send(401, b"")
             if self.headers.get("Content-Type") != "application/json":
                 return self._send(400, b"")
-            body["uuid"] = body.get("uuid") or f"uuid-{len(self.state.apps)}"
-            self.state.apps.append(body)
+            # Same semantics as Apollo's proc::migrate_apps: an existing uuid
+            # replaces that app, an empty uuid appends a new one.
+            if body.get("uuid"):
+                for i, app in enumerate(self.state.apps):
+                    if app.get("uuid") == body["uuid"]:
+                        self.state.apps[i] = body
+                        break
+                else:
+                    self.state.apps.append(body)
+            else:
+                body["uuid"] = f"uuid-{len(self.state.apps)}"
+                self.state.apps.append(body)
             return self._send(200, b'{"status":true}')
         self._send(404, b"{}")
 

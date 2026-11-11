@@ -249,8 +249,23 @@ class ApolloTests(unittest.TestCase):
             self.assertEqual(by_name["Cyberpunk 2077"]["steam_appids"], [1091500])
             self.assertEqual(by_name["Elden Ring (PC)"]["steam_appids"], [1245620])
             self.assertEqual(len(c.seen_sha256), 64)
-            c.add_steam_app("Hades II", 1145350)
+            self.assertEqual(c.add_steam_app("Hades II", 1145350), "created")
             self.assertEqual(fake.apps[-1]["detached"], ["steam://rungameid/1145350"])
+            self.assertIs(fake.apps[-1]["virtual-display"], True)
+            # an existing app without the virtual display option is repaired in place
+            n = len(fake.apps)
+            self.assertEqual(c.ensure_steam_app("cyberpunk 2077", 1091500), "updated")
+            cp = [a for a in fake.apps if a["name"] == "Cyberpunk 2077"]
+            self.assertEqual(len(fake.apps), n)
+            self.assertEqual(len(cp), 1)
+            self.assertIs(cp[0]["virtual-display"], True)
+            self.assertEqual(cp[0]["uuid"], "u3")
+            self.assertEqual(cp[0]["detached"], ["steam://rungameid/1091500"])  # rest untouched
+            self.assertEqual(c.ensure_steam_app("Cyberpunk 2077", 1091500), "exists")
+            # option off: nothing is changed on existing apps, new apps get false
+            self.assertEqual(c.ensure_steam_app("Desktop", 0, virtual_display=False), "exists")
+            self.assertEqual(c.ensure_steam_app("Doom", 2280, virtual_display=False), "created")
+            self.assertIs(fake.apps[-1]["virtual-display"], False)
             # pinning: wrong fingerprint refuses before sending credentials
             bad = apollo.ApolloWebClient("127.0.0.1", fake.https_port, "admin", "secret", pinned_sha256="00" * 32)
             with self.assertRaises(apollo.ApolloError) as cm:
@@ -424,7 +439,9 @@ class ServiceTests(unittest.TestCase):
             self.assertTrue(r["can_create"])
             r = run(self.svc.create_apollo_app(1145350, "Hades II Deluxe"))
             self.assertTrue(r["ok"], r)
+            self.assertEqual(r["result"], "created")
             self.assertEqual(fake.apps[-1]["name"], "Hades II Deluxe")
+            self.assertIs(fake.apps[-1]["virtual-display"], True)
             r = run(self.svc.prepare_launch(1145350, "Hades II Deluxe"))
             self.assertTrue(r["ok"], r)
 

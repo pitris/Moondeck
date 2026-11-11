@@ -4,6 +4,7 @@ import {
   Failure,
   cancelLaunch,
   createApolloApp,
+  createdMessage,
   lastSession,
   log,
   prepareLaunch,
@@ -122,7 +123,7 @@ async function prepare(target: LaunchTarget): Promise<string | null> {
               await alertModal("Could not add the game to Apollo", c.message);
               return null;
             }
-            toaster.toast({ title: "Moonlight", body: `Added “${c.app_name}” to Apollo` });
+            toaster.toast({ title: "Moonlight", body: createdMessage(c) });
           } else {
             await setMapping(target.appid, choice.name, target.name);
             settingsStore.load();

@@ -25,13 +25,22 @@ aside as `settings.json.corrupt-<time>` and defaults are used instead.
 | `apollo_web.enabled` | false | Read app commands for exact Steam AppID matching; allow creating apps. |
 | `apollo_web.port` | 47990 | Web UI port. |
 | `apollo_web.username` / `password` | – | Web UI login. The password is stored only in this file; the UI never receives it back. |
+| `apollo_web.new_app_virtual_display` | true | Apps created from the handheld get Apollo's **Always create Virtual Display** option. Pressing *Add to Apollo* on an existing app turns it on there as well. |
 | `apollo_web.cert_sha256` | pinned | SHA-256 of Apollo's self-signed certificate, pinned on first use. If Apollo is reinstalled (new certificate), press **Forget** under *Pinned certificate*. |
 
 Apps created from the handheld look like this in Apollo:
 
 ```json
-{ "name": "Hades II", "detached": ["steam://rungameid/1145350"], "auto-detach": true, "wait-all": true }
+{ "name": "Hades II", "detached": ["steam://rungameid/1145350"], "auto-detach": true, "wait-all": true, "virtual-display": true }
 ```
+
+**Virtual display.** Apollo creates its virtual display (and, with its isolated
+display option, turns the physical screen off) only when the app has
+*Always create Virtual Display*, Headless mode is on, or the client asks for
+it. Regular Moonlight does not ask (Apollo's own client Artemis does). So
+either keep the option above on, or enable it once per device in Apollo's web
+UI: client list → your Legion → **Always create virtual display**. That
+covers every app streamed to the Legion.
 
 You can edit them later in Apollo's web UI (cover art, prep commands, …). The
 mapping only depends on the name.

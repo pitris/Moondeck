@@ -97,7 +97,7 @@ export const AppPicker = ({ gameName, reason, candidates, apps: initialApps, can
       <Focusable style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {canCreate && (
           <DialogButton onClick={() => done({ kind: "create" })}>
-            ➕ Add “{gameName}” to Apollo on the PC
+            ➕ Add “{gameName}” to Apollo on the PC (or repair it)
           </DialogButton>
         )}
         {candidates.map((c) => (

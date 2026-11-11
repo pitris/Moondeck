@@ -230,21 +230,19 @@ class Service:
             return _err("NOT_STEAM", "Only Steam games can be added to Apollo automatically.")
         name = steam_name.strip() or f"Steam {steam_appid}"
         try:
-            await asyncio.to_thread(self._create_app, s, name, int(steam_appid))
+            result = await asyncio.to_thread(self._create_app, s, name, int(steam_appid))
         except apollo.ApolloError as e:
             return _err(e.code, e.message)
         self.store.set_mapping(int(steam_appid), name, "created", steam_name)
         refreshed = await self.refresh_apps()
-        return {"ok": True, "app_name": name, "refreshed": refreshed.get("ok", False)}
+        return {"ok": True, "app_name": name, "result": result, "refreshed": refreshed.get("ok", False)}
 
-    def _create_app(self, s: Dict[str, Any], name: str, appid: int) -> None:
+    def _create_app(self, s: Dict[str, Any], name: str, appid: int) -> str:
         client = self._web_client(s)
-        existing = client.get_apps()
+        result = client.ensure_steam_app(name, appid, s["apollo_web"]["new_app_virtual_display"])
         if not s["apollo_web"]["cert_sha256"] and client.seen_sha256:
             self.store.update({"apollo_web": {"cert_sha256": client.seen_sha256}})
-        if any(a["name"].lower() == name.lower() for a in existing):
-            return  # already there, just map it
-        client.add_steam_app(name, appid)
+        return result
 
     # ----------------------------------------------------------------- launch
     async def prepare_launch(self, steam_appid: int, steam_name: str) -> Dict[str, Any]:

@@ -177,6 +177,9 @@ const AppsPage = () => {
         <SettingText label="Username" value={w.username} toPatch={(v) => ({ apollo_web: { username: v } })} />
         <SettingText label="Password" password value="" placeholder={w.password_set ? "•••••• (saved)" : ""}
           toPatch={(v) => ({ apollo_web: { password: v } })} />
+        <SettingToggle label="New Apollo apps use the virtual display"
+          description="Apps added from here get Apollo's “Always create Virtual Display” option, so the game runs on a virtual screen sized for the Legion (and your PC screen can stay off). Pressing “Add to Apollo” again on an existing app turns it on there too."
+          value={w.new_app_virtual_display} toPatch={(v) => ({ apollo_web: { new_app_virtual_display: v } })} />
         <SettingText label="Web UI port" value={String(w.port)} toPatch={(v) => ({ apollo_web: { port: Number(v) } })} />
         <Field label="Pinned certificate" description={w.cert_sha256 ? `SHA-256 ${w.cert_sha256.slice(0, 16)}…` : "Not pinned yet (pinned on first successful connection)"}>
           {w.cert_sha256 && <ButtonItem onClick={() => saveOrToast({ apollo_web: { cert_sha256: "" } })}>Forget</ButtonItem>}

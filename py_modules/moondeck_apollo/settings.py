@@ -35,6 +35,9 @@ DEFAULTS: Dict[str, Any] = {
         "password": "",
         # SHA-256 fingerprint of the web UI certificate, pinned on first use.
         "cert_sha256": "",
+        # Apps created from the handheld get Apollo's "Always create Virtual
+        # Display" option (stream on a virtual screen sized for the Legion).
+        "new_app_virtual_display": True,
     },
     "moonlight": {
         "flatpak_id": "com.moonlight_stream.Moonlight",
@@ -148,6 +151,7 @@ def validate(data: Dict[str, Any]) -> Dict[str, Any]:
     web["username"] = str(web["username"])
     web["password"] = str(web["password"])
     web["cert_sha256"] = str(web["cert_sha256"]).strip().lower()
+    web["new_app_virtual_display"] = bool(web["new_app_virtual_display"])
 
     ml = d["moonlight"]
     ml["flatpak_id"] = str(ml["flatpak_id"]).strip() or DEFAULTS["moonlight"]["flatpak_id"]

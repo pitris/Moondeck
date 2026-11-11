@@ -21,6 +21,7 @@ export interface Settings {
     password_set?: boolean;
     clear_password?: boolean;
     cert_sha256: string;
+    new_app_virtual_display: boolean;
   };
   moonlight: {
     flatpak_id: string;
@@ -123,7 +124,13 @@ export const wakeHost = callable<[], Result<{ sent: number }>>("wake_host");
 export const refreshApps = callable<[], Result<{ apps: ApolloApp[]; source: string; warnings: string[] }>>("refresh_apps");
 export const getApps = callable<[], Result<Settings["apps_cache"]>>("get_apps");
 export const resolveApp = callable<[steamAppId: number, steamName: string], Result<Resolution>>("resolve");
-export const createApolloApp = callable<[steamAppId: number, steamName: string], Result<{ app_name: string }>>("create_apollo_app");
+export const createApolloApp = callable<[steamAppId: number, steamName: string], Result<{ app_name: string; result: "created" | "updated" | "exists" }>>("create_apollo_app");
+
+export function createdMessage(r: { app_name: string; result: string }): string {
+  if (r.result === "updated") return `Turned on the virtual display for “${r.app_name}” in Apollo`;
+  if (r.result === "exists") return `“${r.app_name}” is already in Apollo`;
+  return `Added “${r.app_name}” to Apollo`;
+}
 export const prepareLaunch = callable<[steamAppId: number, steamName: string], Result<{ app_name: string; resolution: string }>>("prepare_launch");
 export const cancelLaunch = callable<[], Result<object>>("cancel_launch");
 export const lastSession = callable<[], Result<{ session: SessionResult | null }>>("last_session");

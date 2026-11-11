@@ -5,7 +5,7 @@ import { Placement, resolveApp } from "../backend";
 import { useSettings } from "../store";
 import { LaunchTarget, isBusy, launchWithMoonlight, onBusyChange } from "../launcher";
 import { alertModal, pickApp } from "./modals";
-import { createApolloApp, setMapping, getApps, log } from "../backend";
+import { createApolloApp, createdMessage, setMapping, getApps, log } from "../backend";
 import { toaster } from "@decky/api";
 import { settingsStore } from "../store";
 
@@ -130,7 +130,7 @@ export const MoonlightButton = ({ appid, name, isSteamGame, placement }: Props) 
     } else if (choice?.kind === "create") {
       const c = await createApolloApp(appid, name);
       if (c.ok) {
-        toaster.toast({ title: "Moonlight", body: `Added “${c.app_name}” to Apollo` });
+        toaster.toast({ title: "Moonlight", body: createdMessage(c) });
         settingsStore.load();
         refreshHint();
       } else {

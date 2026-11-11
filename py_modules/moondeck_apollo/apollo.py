@@ -222,11 +222,45 @@ class ApolloWebClient:
             })
         return apps
 
-    def add_steam_app(self, name: str, steam_appid: int) -> None:
-        """Create an Apollo app that launches ``steam://rungameid/<appid>`` on the PC."""
+    def get_raw_apps(self) -> List[Dict[str, Any]]:
+        """App definitions exactly as stored in Apollo's apps.json."""
         if not self.cookie and not self.use_basic:
             self.login()
-        body = {
+        status, _, payload = self._request("GET", "/api/apps")
+        if status != 200:
+            raise ApolloError("WEB_ERROR", f"HTTP {status} from /api/apps")
+        try:
+            return [a for a in (json.loads(payload).get("apps") or []) if isinstance(a, dict)]
+        except ValueError as e:
+            raise ApolloError("WEB_ERROR", f"Invalid JSON from /api/apps: {e}")
+
+    def _save_app(self, body: Dict[str, Any], what: str) -> None:
+        status, _, payload = self._request("POST", "/api/apps", body)
+        if status != 200:
+            raise ApolloError("WEB_ERROR", f"Apollo refused to {what} the app (HTTP {status}): "
+                                           f"{payload[:200].decode(errors='replace')}")
+
+    def ensure_steam_app(self, name: str, steam_appid: int, virtual_display: bool = True) -> str:
+        """Create (or repair) an Apollo app that launches ``steam://rungameid/<appid>``.
+
+        ``virtual_display`` sets Apollo's per-app "Always create Virtual Display"
+        option. Without it Apollo streams the PC's physical screen unless the
+        client asks for a virtual display (Moonlight does not; Apollo's own
+        client Artemis does), Headless mode is on, or the device is set to
+        "Always create virtual display" in Apollo's client list.
+
+        Returns "created", "updated" or "exists".
+        """
+        for app in self.get_raw_apps():
+            if str(app.get("name", "")).lower() != name.lower():
+                continue
+            if virtual_display and not app.get("virtual-display"):
+                updated = dict(app)
+                updated["virtual-display"] = True
+                self._save_app(updated, "update")  # same uuid -> Apollo replaces it
+                return "updated"
+            return "exists"
+        self._save_app({
             "name": name,
             "output": "",
             "cmd": "",
@@ -238,13 +272,14 @@ class ApolloWebClient:
             "prep-cmd": [],
             "detached": [f"steam://rungameid/{int(steam_appid)}"],
             "image-path": "",
+            "virtual-display": bool(virtual_display),
             # Empty uuid -> Apollo generates one and appends a new app.
             "uuid": "",
-        }
-        status, _, payload = self._request("POST", "/api/apps", body)
-        if status != 200:
-            raise ApolloError("WEB_ERROR", f"Apollo refused to create the app (HTTP {status}): "
-                                           f"{payload[:200].decode(errors='replace')}")
+        }, "create")
+        return "created"
+
+    def add_steam_app(self, name: str, steam_appid: int, virtual_display: bool = True) -> str:
+        return self.ensure_steam_app(name, steam_appid, virtual_display)
 
 
 def _extract_cookie(set_cookie: str, name: str) -> Optional[str]:
