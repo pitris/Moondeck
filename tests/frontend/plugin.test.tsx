@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, ReactElement } from "react";
 import { renderToString } from "react-dom/server";
 import { backend, calls, routerHook } from "./mocks/decky-api";
-import { Navigation } from "./mocks/decky-ui";
+import { Navigation, findInReactTree, playSectionModule } from "./mocks/decky-ui";
 import { installFakeSteam, FakeSteam } from "./steam-env";
 
 // Interactive dialogs are replaced by programmable answers.
@@ -15,7 +15,7 @@ vi.mock("../../src/components/modals", () => ({
   showProgress: () => () => {},
 }));
 
-import { inject, patchLibraryApp } from "../../src/patches/libraryApp";
+import { inject, patchLibraryApp, resetForTests } from "../../src/patches/libraryApp";
 import { launchWithMoonlight, onAppPageRendered } from "../../src/launcher";
 import { ensureRunner, removeRunner } from "../../src/steam/runner";
 import { settingsStore } from "../../src/store";
@@ -46,6 +46,8 @@ function gamePage(overview: object): { ret: ReactElement; container: any } {
 
 let steam: FakeSteam;
 beforeEach(() => {
+  resetForTests();
+  for (const p of routerHook.patchesFor("/library/app/:appid")) routerHook.removePatch("/library/app/:appid", p);
   steam = installFakeSteam();
   calls.length = 0;
   answers.alerts.length = 0;
@@ -96,14 +98,21 @@ describe("game page injection", () => {
     expect(() => inject(ret, cp)).not.toThrow();
   });
 
-  it("route patch wraps renderFunc and unpatches cleanly", () => {
+  it("older Steam layout: route patch + real tree patcher add the button, unpatch cleanly", () => {
+    settingsStore.current!.ui.placement = "play_row"; // falls back automatically on the old layout
     const unpatch = patchLibraryApp();
     const [patch] = routerHook.patchesFor("/library/app/:appid");
-    const { ret, container } = gamePage(cp);
-    const routeProps: any = { renderFunc: () => ret };
+    const header = createElement("div", { key: "h", className: "appdetails_Header_abc" });
+    const play = createElement("div", { key: "p", overview: cp, onShowLaunchingDetails: () => {} });
+    const container = createElement("div", { className: "appdetails_InnerContainer_abc x" }, [header, play]);
+    const PageBody = (_props: object) => container;
+    const routeProps: any = { renderFunc: () => createElement("div", null, createElement("section", null, createElement(PageBody, { overview: cp }))) };
     patch({ children: { props: routeProps } });
-    routeProps.renderFunc();
-    expect(container.props.children[2].key).toBe("moondeck-apollo");
+    const out = routeProps.renderFunc();
+    const body = findInReactTree(out, (n: any) => n?.props?.overview && typeof n.type === "function");
+    body.type(body.props); // React renders the (now patched) page body
+    expect(container.props.children.map((k: any) => k.key)).toEqual(["h", "p", "moondeck-apollo"]);
+    expect(container.props.children[2].props.placement).toBe("below_play");
     unpatch();
     expect(routerHook.patchesFor("/library/app/:appid")).toHaveLength(0);
   });
@@ -112,6 +121,82 @@ describe("game page injection", () => {
     const html = renderToString(createElement(MoonlightButton, { appid: 1091500, name: "Cyberpunk 2077", isSteamGame: true, placement: "below_play" }));
     expect(html).toContain("Moonlight");
     expect(html).toContain("mda-launch");
+  });
+});
+
+describe("current Steam layout: button next to Play", () => {
+  const cp = { appid: 1091500, display_name: "Cyberpunk 2077", app_type: 1 };
+  const c = playSectionModule;
+  const fwd = (render: (p: any, r: any) => any) => ({ $$typeof: Symbol.for("react.forward_ref"), render });
+  // Minified-style render functions: their source mentions `<classes>.ActionRow,` / `.PlaySection,`.
+  const ActionRow = fwd(function (p: any) {
+    const cls = [c.ActionRow, "Panel"].join(" ");
+    return createElement("div", { className: cls }, [
+      createElement("button", { key: "play" }, p.overview.display_name ? "Play" : "?"),
+      createElement("div", { key: "stats" }),
+      createElement("div", { key: "icons" }),
+    ]);
+  });
+  const PlaySection = fwd(function (p: any) {
+    const k = [c.PlaySection, 1];
+    return createElement("div", { className: "ps", "data-k": k[1] }, createElement(ActionRow, { overview: p.overview }));
+  });
+  const sections = (p: any) => createElement("div", { className: "sections" }, [
+    createElement("div", { key: "header" }),
+    createElement(PlaySection, { key: "play", overview: p.overview }),
+    createElement("div", { key: "about" }),
+  ]);
+
+  /** Render the route the way React would: renderFunc -> sections(value) -> PlaySection -> ActionRow. */
+  function renderPage(routeProps: any, overview: object): any {
+    const out = routeProps.renderFunc();
+    const holder = findInReactTree(out, (n: any) => typeof n?.props?.value === "function");
+    const secTree = holder.props.value({ overview });
+    const ps = findInReactTree(secTree, (n: any) => n?.key === "play");
+    const psTree = ps.type.render(ps.props, null);
+    const ar = findInReactTree(psTree, (n: any) => n?.type?.render);
+    return ar.type.render(ar.props, null);
+  }
+
+  function setup(overview: object) {
+    const unpatch = patchLibraryApp();
+    const [patch] = routerHook.patchesFor("/library/app/:appid");
+    const routeProps: any = {
+      renderFunc: () => createElement("div", null,
+        createElement("x-sections", { value: sections }, createElement("div", { overview }))),
+    };
+    patch({ children: { props: routeProps } });
+    return { routeProps, unpatch };
+  }
+
+  it("inserts the Moonlight button right after Steam's Play button", () => {
+    settingsStore.current!.ui.placement = "play_row";
+    const { routeProps, unpatch } = setup(cp);
+    const row = renderPage(routeProps, cp);
+    expect(row.props.children.map((k: any) => k.key)).toEqual(["play", "moondeck-apollo", "stats", "icons"]);
+    expect(row.props.children[1].props).toMatchObject({ appid: 1091500, name: "Cyberpunk 2077", isSteamGame: true, placement: "play_row" });
+    // re-render: still exactly one button
+    const again = renderPage(routeProps, cp);
+    expect(again.props.children.filter((k: any) => k.key === "moondeck-apollo")).toHaveLength(1);
+    unpatch();
+  });
+
+  it("does not add the button for tools, and leaves the page alone in other placements", () => {
+    const tool = { appid: 1493710, display_name: "Proton", app_type: 4 };
+    settingsStore.current!.ui.placement = "play_row";
+    let { routeProps, unpatch } = setup(tool);
+    expect(renderPage(routeProps, tool).props.children).toHaveLength(3);
+    unpatch();
+    settingsStore.current!.ui.placement = "hero";
+    ({ routeProps, unpatch } = setup(cp));
+    expect(renderPage(routeProps, cp).props.children).toHaveLength(3);
+    unpatch();
+  });
+
+  it("the in-row button renders with a two-line label", () => {
+    const html = renderToString(createElement(MoonlightButton, { appid: 1091500, name: "Cyberpunk 2077", isSteamGame: true, placement: "play_row" }));
+    expect(html).toContain("mda-inrow");
+    expect(html).toContain("Stream from your PC");
   });
 });
 

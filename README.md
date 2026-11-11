@@ -5,14 +5,14 @@ the game's own page in SteamOS Gaming Mode.**
 
 A [Decky Loader](https://decky.xyz) plugin, built for a Lenovo Legion Go S on
 SteamOS and an Apollo host on Windows 11. Each game page gets a **Moonlight**
-option under Steam's own **Play / Stream** button:
+option right next to Steam's own **Play / Stream** button:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     Cyberpunk 2077 artwork                   │
 ├──────────────────────────────────────────────────────────────┤
-│ [ ▶ Play ▾ ]   Last played …   Play time …        ⚙  ⓘ  ☆   │  ← Steam (Play / Stream)
-│ [ ☾ Moonlight ] [⋯]  Apollo: Cyberpunk 2077                  │  ← Moondeck Apollo
+│ [ ▶ Play ▾ ] [ ☾ Moonlight      ][⋯]  Last played …   ⚙  ⓘ  ☆  │
+│              [   Apollo: Cyberpunk ]                            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,11 +53,12 @@ Full research: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   native Steam found on the network (`overview.per_client_data`). A plugin
   cannot add an entry there safely.
 * **What Decky can do:** patch the React tree of Steam's game page at runtime.
-  Moondeck Apollo adds its own button next to the play section, the same way
-  MoonDeck, ProtonDB Badges and HLTB decorate this page.
+  Moondeck Apollo adds its own button into the play bar, right after Steam's
+  Play button (the technique OpenNOW uses on current Steam clients), with the
+  older MoonDeck/ProtonDB-style placement as a fallback.
 * **Compromises:**
-  * the Moonlight option is a **separate button below Play/Stream**, not an
-    entry inside Steam's Play/Stream dropdown;
+  * the Moonlight option is a **separate button next to Play/Stream** in the
+    same play bar, not an entry inside Steam's Play/Stream dropdown;
   * Moonlight runs through **one hidden, automatically managed Steam shortcut**.
     Without it Steam Input and window focus would not work. It is not per game,
     you never create it, and it does not appear in the library;
@@ -70,8 +71,8 @@ Full research: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Features
 
 * **Native-looking Moonlight button** on every Steam game page (optionally also
-  on non-Steam shortcuts), with gamepad focus and a moon icon. Two positions:
-  directly below Play, or on the game artwork.
+  on non-Steam shortcuts), with gamepad focus and a moon icon, placed next to
+  Play (or below the play bar / on the artwork).
 * **Automatic game → Apollo app mapping**: saved choice → Apollo app that
   launches the same Steam AppID (via Apollo's web UI API) → same name
   (ignores ™/®, punctuation, case and Roman numerals). If nothing matches you

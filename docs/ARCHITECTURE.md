@@ -48,7 +48,17 @@ selector.** Options that were investigated:
 | Entry in the game's context menu (⚙ / Options) | Possible future addition | decky-steamgriddb does this. Its code has needed fixes for Steam client changes (e.g. the Oct 2025 client), which shows how often these internals move. |
 
 **Result:** each game page shows *Play/Stream* (Steam's native button) plus a
-**Moonlight** button directly below it (or, optionally, on the game artwork).
+**Moonlight** button right next to it in the same play bar.
+
+**Update (Nov 2026, found on a real device):** on current Steam clients the
+game page is rendered through a node whose `value` prop is the function that
+renders the page sections, so the classic "InnerContainer" injection used by
+MoonDeck/ProtonDB finds nothing. The plugin now wraps that function and
+follows it to the `PlaySection` and `ActionRow` components (located by the
+`ActionRow`/`AppButtons`/`PlaySection` class module), inserting the button after
+Steam's Play button. This is the approach the actively maintained OpenNOW
+plugin uses. The InnerContainer method remains as an automatic fallback for
+older clients.
 It is a separate button rendered by the plugin, not an entry inside Steam's
 selector. That compromise is unavoidable.
 

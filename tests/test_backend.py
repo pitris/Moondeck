@@ -101,6 +101,17 @@ class SettingsTests(unittest.TestCase):
             validate({"host": {"address": "1.2.3.4; rm -rf /"}})
         self.assertEqual(validate({"moonlight": {"fps": 60}})["moonlight"]["fps"], "60")
 
+    def test_v1_placement_migrates_to_play_row(self):
+        with open(os.path.join(self.tmp, "settings.json"), "w") as f:
+            json.dump({"version": 1, "ui": {"placement": "below_play"}, "host": {"address": "10.0.0.2"}}, f)
+        s = SettingsStore(self.tmp).load()
+        self.assertEqual((s["version"], s["ui"]["placement"], s["host"]["address"]), (2, "play_row", "10.0.0.2"))
+        # an explicit choice made on v2 is kept
+        store = SettingsStore(self.tmp)
+        store.update({"ui": {"placement": "below_play"}})
+        self.assertEqual(SettingsStore(self.tmp).load()["ui"]["placement"], "below_play")
+        self.assertEqual(validate({})["ui"]["placement"], "play_row")
+
     def test_corrupt_file_recovers(self):
         with open(os.path.join(self.tmp, "settings.json"), "w") as f:
             f.write("{not json")

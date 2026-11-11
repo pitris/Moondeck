@@ -225,7 +225,7 @@ const ButtonPage = () => {
       <Section title="Game page button">
         <SettingChoice label="Position" description="Takes effect the next time a game page opens."
           value={s.ui.placement}
-          options={[["below_play", "Directly below the Play button"], ["hero", "On the game artwork, above the play bar"]]}
+          options={[["play_row", "Next to the Play button"], ["below_play", "Below the play bar"], ["hero", "On the game artwork, above the play bar"]]}
           toPatch={(v) => ({ ui: { placement: v } })} />
         <SettingText label="Button label" value={s.ui.label} toPatch={(v) => ({ ui: { label: v } })} />
         <SettingToggle label="Show on non-Steam games" description="Requires a manual mapping (no Steam AppID)." value={s.ui.show_on_non_steam}

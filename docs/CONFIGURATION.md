@@ -59,7 +59,7 @@ Moonlight's own settings applies.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `ui.placement` | `below_play` | `below_play`: a row directly under the play bar. `hero`: on the game artwork, bottom-right, above the play bar. |
+| `ui.placement` | `play_row` | `play_row`: inside Steam's play bar, right after the Play/Stream button. `below_play`: a row under the play bar. `hero`: on the game artwork, bottom-right. The last two use the older page structure and are kept as fallbacks. |
 | `ui.label` | Moonlight | Button text. |
 | `ui.show_on_non_steam` | true | Also show the button on non-Steam shortcuts (manual mapping only). |
 | `ui.rename_runner_per_launch` | true | Show "*Game* (Moonlight)" as the running game's name. |

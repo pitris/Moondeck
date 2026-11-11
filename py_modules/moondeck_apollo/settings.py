@@ -9,7 +9,7 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 DEFAULTS: Dict[str, Any] = {
     "version": SCHEMA_VERSION,
@@ -53,8 +53,8 @@ DEFAULTS: Dict[str, Any] = {
         "extra_args": "",
     },
     "ui": {
-        # "below_play" or "hero"
-        "placement": "below_play",
+        # "play_row" (next to Steam's Play button), "below_play" or "hero"
+        "placement": "play_row",
         "label": "Moonlight",
         "rename_runner_per_launch": True,
         "show_on_non_steam": True,
@@ -78,7 +78,7 @@ _HOST_RE = re.compile(r"^[A-Za-z0-9._:\-\[\]%]+$")
 DISPLAY_MODES = ("", "fullscreen", "windowed", "borderless")
 VIDEO_CODECS = ("", "auto", "H.264", "HEVC", "AV1")
 TRISTATE = ("", "on", "off")
-PLACEMENTS = ("below_play", "hero")
+PLACEMENTS = ("play_row", "below_play", "hero")
 
 
 class SettingsError(ValueError):
@@ -123,6 +123,10 @@ def normalize_mac(mac: str) -> str:
 def validate(data: Dict[str, Any]) -> Dict[str, Any]:
     """Validate and normalise a full settings document. Raises SettingsError."""
     d = _fill_defaults(DEFAULTS, data)
+    # v1 -> v2: the old default placement did not show on current Steam
+    # clients; move users who never changed it to the new play-row default.
+    if int(data.get("version") or 1) < 2 and d["ui"].get("placement") == "below_play":
+        d["ui"]["placement"] = "play_row"
     d["version"] = SCHEMA_VERSION
 
     host = d["host"]

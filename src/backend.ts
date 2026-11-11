@@ -1,6 +1,6 @@
 import { callable } from "@decky/api";
 
-export type Placement = "below_play" | "hero";
+export type Placement = "play_row" | "below_play" | "hero";
 
 export interface Settings {
   version: number;

@@ -39,41 +39,18 @@ export const showModal = (modal: unknown) => {
   return { Close() {}, ClosedPromise: Promise.resolve(), Update() {} };
 };
 
-// --- tree helpers: same semantics as the real ones ---------------------------
-export function findInTree(node: any, filter: (x: any) => boolean, opts: { walkable?: string[] } = {}, seen = new Set()): any {
-  if (!node || typeof node !== "object" || seen.has(node)) return null;
-  seen.add(node);
-  if (filter(node)) return node;
-  const keys = opts.walkable ?? Object.keys(node);
-  for (const k of keys) {
-    const v = node[k];
-    if (Array.isArray(v)) {
-      for (const c of v) {
-        const r = findInTree(c, filter, opts, seen);
-        if (r) return r;
-      }
-    } else if (v && typeof v === "object") {
-      const r = findInTree(v, filter, opts, seen);
-      if (r) return r;
-    }
-  }
-  return null;
-}
-export const findInReactTree = (node: any, filter: (x: any) => boolean) =>
-  findInTree(node, filter, { walkable: ["props", "children", "child", "sibling"] });
+// --- the REAL tree helpers from @decky/ui (pure JS, no Steam needed) ----------
+export { createReactTreePatcher } from "../../../node_modules/@decky/ui/dist/utils/react/treepatcher.js";
+export { afterPatch } from "../../../node_modules/@decky/ui/dist/utils/patcher.js";
+export { findInTree, findInReactTree } from "../../../node_modules/@decky/ui/dist/utils/react/react.js";
 
-export function afterPatch(obj: any, name: string, handler: (args: unknown[], ret: unknown) => unknown) {
-  const orig = obj[name];
-  obj[name] = function (...args: unknown[]) {
-    return handler(args, orig.apply(this, args));
-  };
-  return { unpatch() { obj[name] = orig; } };
-}
-
-/** Simplified: run each step on the returned tree, then the handler on the final one. */
-export function createReactTreePatcher(steps: ((n: any) => any)[], handler: (args: unknown[], ret: any) => any) {
-  return (args: unknown[], ret: any) => {
-    for (const step of steps) step(ret);
-    return handler(args, ret);
-  };
+/** Class module of Steam's play section (names are hashed in the real client). */
+export const playSectionModule = {
+  ActionRow: "appdetailsplaysection_ActionRow_3Xk2",
+  AppButtons: "appdetailsplaysection_AppButtons_1aB",
+  PlaySection: "appdetailsplaysection_PlaySection_9q",
+};
+export const classModules: Record<string, string>[] = [playSectionModule];
+export function findClassModule(filter: (m: any) => boolean) {
+  return classModules.find((m) => filter(m));
 }

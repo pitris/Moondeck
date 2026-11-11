@@ -14,19 +14,27 @@ const CSS = `
 .mda-row.mda-below { padding: 10px 2.8vw 4px; }
 .mda-anchor { position: relative; height: 0; z-index: 7; }
 .mda-anchor .mda-row { position: absolute; right: 2.8vw; bottom: 14px; }
-.mda-row .mda-launch.DialogButton {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  width: auto; min-width: 200px; height: 48px; padding: 0 28px;
-  font-size: 18px; font-weight: 700; letter-spacing: 0.02em; border-radius: 3px;
-  color: #fff; background: linear-gradient(90deg, #3f51b5 0%, #5c6bc0 100%);
+.mda-inrow { display: flex; align-self: stretch; align-items: stretch; margin-left: 16px; flex-shrink: 0; }
+.mda-inrow .mda-row { gap: 6px; align-items: stretch; }
+.mda-row .mda-launch {
+  display: flex !important; align-items: center; justify-content: center; gap: 10px;
+  width: auto !important; min-width: 200px; height: 48px; padding: 0 28px !important;
+  font-size: 18px; font-weight: 700; letter-spacing: 0.02em; border-radius: 3px !important;
+  color: #fff !important; background: linear-gradient(90deg, #3f51b5 0%, #5c6bc0 100%) !important;
   box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: filter 120ms ease, transform 120ms ease;
 }
-.mda-row .mda-launch.DialogButton.gpfocus,
-.mda-row .mda-launch.DialogButton:hover { filter: brightness(1.25); transform: scale(1.02); }
-.mda-row .mda-launch.DialogButton:disabled { filter: grayscale(0.6) brightness(0.8); }
-.mda-row .mda-more.DialogButton {
-  width: 48px; min-width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 20px; font-weight: 700; border-radius: 3px;
+.mda-inrow .mda-launch {
+  height: auto; min-height: 48px; min-width: 190px; padding: 0 18px !important;
+  justify-content: flex-start; text-align: left; border-radius: 2px !important; margin: 0 !important;
+}
+.mda-row .mda-launch.gpfocus, .mda-row .mda-launch:hover { filter: brightness(1.25); }
+.mda-row .mda-launch:disabled { filter: grayscale(0.6) brightness(0.8); }
+.mda-text { display: flex; flex-direction: column; line-height: 1.15; }
+.mda-title { font-size: 16px; font-weight: 600; }
+.mda-detail { font-size: 12px; font-weight: 400; opacity: 0.8; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mda-row .mda-more {
+  width: 44px !important; min-width: 44px !important; padding: 0 !important; margin: 0 !important;
+  display: flex !important; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; border-radius: 2px !important;
 }
 .mda-hint { font-size: 13px; opacity: 0.7; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
@@ -120,7 +128,8 @@ export const MoonlightButton = ({ appid, name, isSteamGame, placement }: Props) 
     }
   };
 
-  const label = settings?.ui.label || "Moonlight";
+  const label = settings?.ui?.label || "Moonlight";
+  const inRow = placement === "play_row";
   const row = (
     <Focusable className={`mda-row ${placement === "below_play" ? "mda-below" : ""}`} flow-children="horizontal">
       <DialogButton
@@ -131,7 +140,14 @@ export const MoonlightButton = ({ appid, name, isSteamGame, placement }: Props) 
         onSecondaryActionDescription="Change Apollo app"
       >
         <MoonIcon />
-        <span>{busy ? "Starting…" : label}</span>
+        {inRow ? (
+          <span className="mda-text">
+            <span className="mda-title">{busy ? "Starting…" : label}</span>
+            <span className="mda-detail">{hint || "Stream from your PC"}</span>
+          </span>
+        ) : (
+          <span>{busy ? "Starting…" : label}</span>
+        )}
       </DialogButton>
       <DialogButton className="mda-more" onClick={changeMapping} aria-label="Change Apollo app">
         ⋯
@@ -141,7 +157,7 @@ export const MoonlightButton = ({ appid, name, isSteamGame, placement }: Props) 
   );
 
   return (
-    <div ref={ref} className={placement === "hero" ? "mda-anchor" : undefined} id="moondeck-apollo">
+    <div ref={ref} className={placement === "hero" ? "mda-anchor" : inRow ? "mda-inrow" : undefined} id="moondeck-apollo">
       <style>{CSS}</style>
       {(placement !== "hero" || heroVisible) && row}
     </div>
