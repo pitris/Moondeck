@@ -4,8 +4,10 @@ import { MoonIcon } from "./icons";
 import { Placement, resolveApp } from "../backend";
 import { useSettings } from "../store";
 import { LaunchTarget, isBusy, launchWithMoonlight, onBusyChange } from "../launcher";
-import { pickApp } from "./modals";
-import { setMapping, getApps, log } from "../backend";
+import { alertModal, pickApp } from "./modals";
+import { createApolloApp, setMapping, getApps, log } from "../backend";
+import { toaster } from "@decky/api";
+import { settingsStore } from "../store";
 
 let mountLogged = false;
 
@@ -120,11 +122,20 @@ export const MoonlightButton = ({ appid, name, isSteamGame, placement }: Props) 
       reason: r.ok && r.app_name ? `Currently: ${r.app_name}` : "Not mapped yet",
       candidates: r.ok ? r.candidates : [],
       apps,
-      canCreate: false,
+      canCreate: isSteamGame && !!settingsStore.current?.apollo_web?.enabled,
     });
     if (choice?.kind === "map") {
       await setMapping(appid, choice.name, name);
       refreshHint();
+    } else if (choice?.kind === "create") {
+      const c = await createApolloApp(appid, name);
+      if (c.ok) {
+        toaster.toast({ title: "Moonlight", body: `Added “${c.app_name}” to Apollo` });
+        settingsStore.load();
+        refreshHint();
+      } else {
+        await alertModal("Could not add the game to Apollo", c.message);
+      }
     }
   };
 

@@ -66,7 +66,7 @@ interface PickerProps {
   done: (r: PickResult) => void;
 }
 
-const AppPicker = ({ gameName, reason, candidates, apps: initialApps, canCreate, done }: PickerProps) => {
+export const AppPicker = ({ gameName, reason, candidates, apps: initialApps, canCreate, done }: PickerProps) => {
   const [apps, setApps] = useState(initialApps);
   const [selected, setSelected] = useState<string | null>(candidates[0] ?? null);
   const [typed, setTyped] = useState("");
@@ -95,6 +95,11 @@ const AppPicker = ({ gameName, reason, candidates, apps: initialApps, canCreate,
         Which app on your PC should be streamed for <b>{gameName}</b>? {reason}. Your choice is remembered.
       </div>
       <Focusable style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {canCreate && (
+          <DialogButton onClick={() => done({ kind: "create" })}>
+            ➕ Add “{gameName}” to Apollo on the PC
+          </DialogButton>
+        )}
         {candidates.map((c) => (
           <DialogButton key={c} onClick={() => done({ kind: "map", name: c })}>
             Stream “{c}”
@@ -119,11 +124,6 @@ const AppPicker = ({ gameName, reason, candidates, apps: initialApps, canCreate,
         />
         {typed.trim() && (
           <DialogButton onClick={() => done({ kind: "map", name: typed.trim() })}>Use “{typed.trim()}”</DialogButton>
-        )}
-        {canCreate && (
-          <DialogButton onClick={() => done({ kind: "create" })}>
-            Add “{gameName}” to Apollo on the PC
-          </DialogButton>
         )}
         <DialogButton disabled={busy} onClick={reload}>{busy ? "Loading…" : "Reload app list from PC"}</DialogButton>
         {note && <div style={{ opacity: 0.8 }}>{note}</div>}
