@@ -45,6 +45,27 @@ covers every app streamed to the Legion.
 You can edit them later in Apollo's web UI (cover art, prep commands, …). The
 mapping only depends on the name.
 
+## Sleep and wake with the Legion
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `power.wake_on_resume` | true | When the Legion wakes up and a Moonlight stream was running when it went to sleep, send Wake-on-LAN (immediately, then after 3, 8, 15 and 25 s while Wi-Fi reconnects). |
+| `power.sleep_pc_on_suspend` | false | When the Legion goes to sleep **during a Moonlight stream**, put the PC to sleep right away. Needs Apollo web UI access. |
+| `power.sleep_app_uuid` | set automatically | The Apollo app used for sleeping. |
+
+How PC sleep works: turning the option on adds an Apollo app **"Moondeck: Sleep PC"**
+(hidden from the game pickers) whose command waits 3 s and then calls Windows'
+`SetSuspendState('Suspend')`. That is real sleep, not hibernate. When you put the
+Legion to sleep during a stream, the plugin briefly holds the Legion's suspend
+(Steam's `SuspendResumeStore.BlockSuspendAction`), asks Apollo to start that
+app through its web API, and then lets the Legion sleep. If the PC does not
+answer within 4 s the Legion sleeps anyway, so it is never kept awake. Starting
+an app makes Apollo end its current app: games added by this plugin are started
+through Steam and keep running, but an Apollo app that runs a game program
+directly would be closed. When the PC wakes, Apollo's virtual display is
+created again when Moonlight reconnects; most games cope, some may move to
+the main monitor.
+
 ## Moonlight
 
 | Setting | Default | CLI flag |

@@ -54,3 +54,9 @@ export const classModules: Record<string, string>[] = [playSectionModule];
 export function findClassModule(filter: (m: any) => boolean) {
   return classModules.find((m) => filter(m));
 }
+
+/** Webpack module lookup: tests register fake Steam modules here. */
+export const webpackModules: any[] = [];
+export function findModuleExport(filter: (m: any) => boolean) {
+  return webpackModules.find((m) => filter(m));
+}

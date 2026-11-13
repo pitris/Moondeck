@@ -111,6 +111,15 @@ def parse_serverinfo(body: bytes) -> Dict[str, Any]:
     }
 
 
+SLEEP_APP_NAME = "Moondeck: Sleep PC"
+# Real sleep (S3/modern standby), not hibernate: rundll32 SetSuspendState
+# hibernates when hibernation is enabled. The short delay lets the handheld
+# finish suspending before the stream drops.
+SLEEP_APP_CMD = ('powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -Command '
+                 '"Start-Sleep -Seconds 3; Add-Type -AssemblyName System.Windows.Forms; '
+                 '[System.Windows.Forms.Application]::SetSuspendState(\'Suspend\', $false, $false)"')
+
+
 class ApolloWebClient:
     """Minimal client for the Apollo/Sunshine web UI API."""
 
@@ -277,6 +286,44 @@ class ApolloWebClient:
             "uuid": "",
         }, "create")
         return "created"
+
+    def ensure_sleep_app(self) -> str:
+        """Create the "Moondeck: Sleep PC" app if needed; returns its uuid."""
+        for app in self.get_raw_apps():
+            if app.get("name") == SLEEP_APP_NAME and app.get("uuid"):
+                if app.get("cmd") != SLEEP_APP_CMD:
+                    self._save_app(dict(app, cmd=SLEEP_APP_CMD), "update")
+                return str(app["uuid"])
+        self._save_app({
+            "name": SLEEP_APP_NAME,
+            "output": "",
+            "cmd": SLEEP_APP_CMD,
+            "exclude-global-prep-cmd": True,
+            "elevated": False,
+            "auto-detach": True,
+            "wait-all": False,
+            "exit-timeout": 5,
+            "prep-cmd": [],
+            "detached": [],
+            "image-path": "",
+            "virtual-display": False,
+            "uuid": "",
+        }, "create")
+        for app in self.get_raw_apps():
+            if app.get("name") == SLEEP_APP_NAME and app.get("uuid"):
+                return str(app["uuid"])
+        raise ApolloError("WEB_ERROR", "Apollo did not keep the Sleep PC app")
+
+    def launch_app(self, uuid: str) -> None:
+        """Start an Apollo app from the web API (works without a client streaming it)."""
+        if not self.cookie and not self.use_basic:
+            self.login()
+        status, _, payload = self._request("POST", "/api/apps/launch", {"uuid": uuid})
+        if status == 400 and b"Cannot find" in payload:
+            raise ApolloError("APP_NOT_FOUND", "Apollo no longer has that app")
+        if status != 200:
+            raise ApolloError("WEB_ERROR", f"Apollo could not start the app (HTTP {status}): "
+                                           f"{payload[:200].decode(errors='replace')}")
 
     def add_steam_app(self, name: str, steam_appid: int, virtual_display: bool = True) -> str:
         return self.ensure_steam_app(name, steam_appid, virtual_display)

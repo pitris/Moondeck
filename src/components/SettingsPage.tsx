@@ -7,6 +7,7 @@ import {
   Field,
   Navigation,
   SidebarNavigation,
+  ToggleField,
   showModal,
 } from "@decky/ui";
 import { toaster } from "@decky/api";
@@ -18,6 +19,8 @@ import {
   detectMac,
   getStatus,
   importMoonlightHosts,
+  prepareSleepApp,
+  sleepPc,
   listBackups,
   refreshApps,
   restoreBackup,
@@ -131,6 +134,36 @@ const HostPage = () => {
           const r = await wakeHost();
           toaster.toast({ title: "Moondeck Apollo", body: r.ok ? `Wake-on-LAN sent (${r.sent} packets)` : r.message });
         }}>Send Wake-on-LAN now</ButtonItem>
+      </Section>
+      <Section title="Sleep and wake with the Legion">
+        <SettingToggle label="Wake the PC when the Legion wakes"
+          description="If a Moonlight stream was running when the Legion went to sleep, send Wake-on-LAN as soon as it wakes so the stream can reconnect."
+          value={s.power.wake_on_resume} toPatch={(v) => ({ power: { wake_on_resume: v } })} />
+        <ToggleField label="Put the PC to sleep when the Legion sleeps"
+          description="Only during a Moonlight stream. Needs Apollo web UI access: the plugin adds an Apollo app “Moondeck: Sleep PC” and starts it right before the Legion suspends. Games added by this plugin keep running on the PC; apps that start a game program directly are closed by Apollo."
+          checked={s.power.sleep_pc_on_suspend}
+          onChange={async (v) => {
+            if (v) {
+              if (!s.apollo_web.enabled) {
+                await alertModal("Apollo web UI access needed", "Turn on “Use Apollo web UI” in Apps & mappings first.");
+                return;
+              }
+              const r = await prepareSleepApp();
+              if (!r.ok) {
+                await alertModal("Could not set up PC sleep", r.message);
+                return;
+              }
+              toaster.toast({ title: "Moondeck Apollo", body: "Added “Moondeck: Sleep PC” to Apollo" });
+            }
+            await saveOrToast({ power: { sleep_pc_on_suspend: v } });
+          }} />
+        <ButtonItem layout="below" disabled={!s.apollo_web.enabled} onClick={() => showModal(
+          <ConfirmModal strTitle="Put the PC to sleep now?" strDescription="Tests the sleep command. Wake it again with “Send Wake-on-LAN now”."
+            strOKButtonText="Sleep PC" onOK={async () => {
+              const r = await sleepPc();
+              toaster.toast({ title: "Moondeck Apollo", body: r.ok ? "PC is going to sleep" : r.message });
+            }} />,
+        )}>Test: put the PC to sleep now</ButtonItem>
       </Section>
     </DialogBody>
   );

@@ -80,6 +80,10 @@ Full research: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   several candidates.
 * **Add a missing game to Apollo from the handheld** (optional, with Apollo web
   UI login). It creates an app that runs `steam://rungameid/<appid>` on the PC.
+* **Sleep and wake with the Legion:** if a stream was running, waking the
+  Legion wakes the PC (Wake-on-LAN). Optionally, putting the Legion to sleep
+  during a stream puts the PC to sleep too (through an Apollo app, with nothing
+  installed on the PC).
 * **PC offline handling:** Wake-on-LAN with progress and cancel; the MAC address
   is learned automatically; clear offline dialog with Retry.
 * **Missing app handling:** the app list is re-checked before launch; renamed or

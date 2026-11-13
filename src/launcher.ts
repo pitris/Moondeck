@@ -14,6 +14,7 @@ import {
 import { settingsStore } from "./store";
 import { RUNNER_BASE_NAME, ensureRunner, isAnyGameRunning, launchRunner, waitForExit } from "./steam/runner";
 import { alertModal, ask, offlineModal, pickApp, showProgress } from "./components/modals";
+import { setStreaming } from "./power";
 import { ConfirmModal } from "@decky/ui";
 import { createElement } from "react";
 
@@ -196,7 +197,12 @@ export async function launchWithMoonlight(target: LaunchTarget): Promise<void> {
 }
 
 async function watchSession(target: LaunchTarget, runnerAppId: number): Promise<void> {
-  await waitForExit(runnerAppId);
+  setStreaming(true);
+  try {
+    await waitForExit(runnerAppId);
+  } finally {
+    setStreaming(false);
+  }
   returnState = { originAppId: target.appid, runnerAppId, since: Date.now(), phase: "exit", handled: false };
   const r = await lastSession();
   const s = r.ok ? r.session : null;

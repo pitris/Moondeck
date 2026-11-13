@@ -69,6 +69,12 @@ class Plugin:
     async def detect_mac(self):
         return await self.service.detect_mac()
 
+    async def prepare_sleep_app(self):
+        return await self.service.prepare_sleep_app()
+
+    async def sleep_pc(self):
+        return await self.service.sleep_pc()
+
     async def wake_host(self):
         return await self.service.wake_host()
 

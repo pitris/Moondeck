@@ -445,6 +445,32 @@ class ServiceTests(unittest.TestCase):
             r = run(self.svc.prepare_launch(1145350, "Hades II Deluxe"))
             self.assertTrue(r["ok"], r)
 
+    def test_sleep_pc(self):
+        with FakeApollo() as fake:
+            self.assertEqual(run(self.svc.sleep_pc())["error"], "WEB_DISABLED")
+            self.configure(fake, username="admin", password="secret")
+            r = run(self.svc.prepare_sleep_app())
+            self.assertTrue(r["ok"], r)
+            app = [a for a in fake.apps if a["name"] == "Moondeck: Sleep PC"]
+            self.assertEqual(len(app), 1)
+            self.assertIn("SetSuspendState('Suspend'", app[0]["cmd"])
+            self.assertEqual(self.svc.store.load()["power"]["sleep_app_uuid"], app[0]["uuid"])
+            # preparing again does not duplicate
+            run(self.svc.prepare_sleep_app())
+            self.assertEqual(len([a for a in fake.apps if a["name"] == "Moondeck: Sleep PC"]), 1)
+            self.assertTrue(run(self.svc.sleep_pc())["ok"])
+            self.assertEqual(fake.launched, [app[0]["uuid"]])
+            # app deleted on the PC -> recreated and launched
+            fake.apps[:] = [a for a in fake.apps if a["name"] != "Moondeck: Sleep PC"]
+            self.assertTrue(run(self.svc.sleep_pc())["ok"])
+            new = [a for a in fake.apps if a["name"] == "Moondeck: Sleep PC"][0]
+            self.assertEqual(fake.launched[-1], new["uuid"])
+            # never offered as a game
+            run(self.svc.refresh_apps())
+            r = run(self.svc.prepare_launch(424242, "Some Game"))
+            self.assertNotIn("Moondeck: Sleep PC", r.get("apps", []))
+            self.assertNotIn("Moondeck: Sleep PC", r.get("candidates", []))
+
     def test_unpaired_moonlight(self):
         with FakeApollo() as fake:
             self.configure(fake)

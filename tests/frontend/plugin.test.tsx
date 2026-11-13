@@ -28,6 +28,7 @@ const SETTINGS = {
   host: { address: "192.168.1.50", moonlight_name: "GAMING-PC", http_port: 47989, mac: "AA:BB:CC:DD:EE:FF", wol_enabled: true, wol_broadcast: "255.255.255.255", wake_timeout: 90 },
   apollo_web: { enabled: false, port: 47990, username: "", password: "", password_set: false, cert_sha256: "", new_app_virtual_display: true },
   moonlight: { flatpak_id: "com.moonlight_stream.Moonlight", custom_path: "", resolution: "", fps: "", bitrate_kbps: "", display_mode: "", video_codec: "", hdr: "", performance_overlay: "", quit_app_after: false, extra_args: "" },
+  power: { wake_on_resume: true, sleep_pc_on_suspend: false, sleep_app_uuid: "" },
   ui: { placement: "below_play", label: "Moonlight", rename_runner_per_launch: true, show_on_non_steam: true },
   runner: { shortcut_appid: 0 },
   mappings: { "1091500": { app_name: "Cyberpunk 2077", source: "manual", steam_name: "Cyberpunk 2077" } },

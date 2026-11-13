@@ -6,6 +6,7 @@ import { MoonIcon } from "./components/icons";
 import { SettingsPage, openSettings, useStatus } from "./components/SettingsPage";
 import { SETTINGS_ROUTE } from "./launcher";
 import { patchLibraryApp } from "./patches/libraryApp";
+import { registerPowerHandlers } from "./power";
 import { ensureRunner } from "./steam/runner";
 import { settingsStore, useSettings } from "./store";
 
@@ -65,6 +66,7 @@ export default definePlugin(() => {
     }
   });
   const unpatch = patchLibraryApp();
+  const unregisterPower = registerPowerHandlers();
   routerHook.addRoute(SETTINGS_ROUTE, SettingsPage);
 
   return {
@@ -74,6 +76,7 @@ export default definePlugin(() => {
     icon: <MoonIcon />,
     onDismount() {
       unpatch();
+      unregisterPower();
       routerHook.removeRoute(SETTINGS_ROUTE);
     },
   };

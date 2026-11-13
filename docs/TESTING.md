@@ -65,6 +65,8 @@ configured (see INSTALL.md). Keep a game with an Apollo app of the **same name**
 | 10 | Web UI access on; B with no app → **Add “B” to Apollo** | App appears in Apollo's web UI; stream starts Steam on the PC with B |
 | 11 | Put the PC to sleep, press **Moonlight** | "Waking…" countdown → PC wakes → stream starts |
 | 12 | Unplug the PC's network, press **Moonlight** | After the timeout: "Gaming PC is offline" with Retry/Cancel |
+| 13a | Settings → Sleep and wake → turn on *Put the PC to sleep*; during a stream press the Legion's power button | Legion sleeps within ~1–4 s; ~3 s later the PC sleeps |
+| 13b | Wake the Legion | Wake-on-LAN is sent; PC wakes; press Moonlight (or Moonlight reconnects) and the game is still running |
 | 13 | Steam menu → Exit game during a stream | Moonlight closes, back on the game page |
 | 14 | Button position "hero" | Button on the artwork bottom-right; hidden during the header's fullscreen transition |
 | 15 | Steam client update (beta ↔ stable) | Steam still works; if the button is missing, the log shows "game page layout not recognised" |

@@ -66,6 +66,13 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             if body.get("username") == "admin" and body.get("password") == "secret":
                 return self._send(200, b"", headers={"Set-Cookie": "auth=COOKIE123; Secure; SameSite=Strict; Path=/"})
             return self._send(401, b"")
+        if self.path == "/api/apps/launch":
+            if not self._authed():
+                return self._send(401, b"")
+            if not any(a.get("uuid") == body.get("uuid") for a in self.state.apps):
+                return self._send(400, b'{"error":"Cannot find requested application"}')
+            self.state.launched.append(body["uuid"])
+            return self._send(200, b'{"status":true}')
         if self.path == "/api/apps":
             if not self._authed():
                 return self._send(401, b"")
@@ -110,6 +117,7 @@ class FakeApollo:
         ]
         self.basic_only = basic_only
         self.requests: List[str] = []
+        self.launched: List[str] = []
         self._tmp = tempfile.TemporaryDirectory()
         cert = os.path.join(self._tmp.name, "cert.pem")
         key = os.path.join(self._tmp.name, "key.pem")

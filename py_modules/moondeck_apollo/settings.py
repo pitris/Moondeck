@@ -55,6 +55,15 @@ DEFAULTS: Dict[str, Any] = {
         "quit_app_after": False,
         "extra_args": "",
     },
+    "power": {
+        # When the Legion wakes and a Moonlight stream was running, send
+        # Wake-on-LAN so the stream can resume.
+        "wake_on_resume": True,
+        # When the Legion goes to sleep during a Moonlight stream, put the PC to
+        # sleep too (needs Apollo web UI access; uses the "Moondeck: Sleep PC" app).
+        "sleep_pc_on_suspend": False,
+        "sleep_app_uuid": "",
+    },
     "ui": {
         # "play_row" (next to Steam's Play button), "below_play" or "hero"
         "placement": "play_row",
@@ -167,6 +176,11 @@ def validate(data: Dict[str, Any]) -> Dict[str, Any]:
     _choice(ml, "performance_overlay", TRISTATE)
     ml["quit_app_after"] = bool(ml["quit_app_after"])
     ml["extra_args"] = str(ml["extra_args"]).strip()
+
+    pw = d["power"]
+    pw["wake_on_resume"] = bool(pw["wake_on_resume"])
+    pw["sleep_pc_on_suspend"] = bool(pw["sleep_pc_on_suspend"])
+    pw["sleep_app_uuid"] = str(pw.get("sleep_app_uuid") or "")
 
     ui = d["ui"]
     _choice(ui, "placement", PLACEMENTS)

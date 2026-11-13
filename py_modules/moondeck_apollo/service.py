@@ -198,6 +198,9 @@ class Service:
                 errors.append(f"Moonlight: {e.message}")
                 return _err(e.code if not errors[:-1] else "APPS_UNAVAILABLE", "; ".join(errors),
                             output=e.output)
+        for app in apps:
+            if app.get("name") == apollo.SLEEP_APP_NAME:
+                app["hidden"] = True  # never offered as a game
         self.store.update({"apps_cache": {"fetched_at": time.time(), "source": source, "apps": apps}})
         return {"ok": True, "apps": apps, "source": source, "warnings": errors}
 
@@ -243,6 +246,49 @@ class Service:
         if not s["apollo_web"]["cert_sha256"] and client.seen_sha256:
             self.store.update({"apollo_web": {"cert_sha256": client.seen_sha256}})
         return result
+
+    # ------------------------------------------------------------------ power
+    async def prepare_sleep_app(self) -> Dict[str, Any]:
+        """Create the Sleep PC app now, so going to sleep later needs one request."""
+        s = self.store.load()
+        if not s["apollo_web"]["enabled"]:
+            return _err("WEB_DISABLED", "Putting the PC to sleep needs Apollo web UI access (Apps & mappings).")
+        try:
+            uuid = await asyncio.to_thread(lambda: self._web_client(s).ensure_sleep_app())
+        except apollo.ApolloError as e:
+            return _err(e.code, e.message)
+        self.store.update({"power": {"sleep_app_uuid": uuid}})
+        return {"ok": True, "uuid": uuid}
+
+    async def sleep_pc(self) -> Dict[str, Any]:
+        """Ask Apollo to run the Sleep PC app. Called right before the handheld suspends."""
+        s = self.store.load()
+        if not s["apollo_web"]["enabled"]:
+            return _err("WEB_DISABLED", "Apollo web UI access is off.")
+
+        def run() -> str:
+            client = self._web_client(s)
+            uuid = s["power"]["sleep_app_uuid"]
+            if uuid:
+                try:
+                    client.launch_app(uuid)
+                    return uuid
+                except apollo.ApolloError as e:
+                    if e.code != "APP_NOT_FOUND":
+                        raise
+            uuid = client.ensure_sleep_app()
+            client.launch_app(uuid)
+            return uuid
+
+        try:
+            uuid = await asyncio.to_thread(run)
+        except apollo.ApolloError as e:
+            self.log.warning("sleep_pc failed: %s", e.message)
+            return _err(e.code, e.message)
+        if uuid != s["power"]["sleep_app_uuid"]:
+            self.store.update({"power": {"sleep_app_uuid": uuid}})
+        self.log.info("asked Apollo to put the PC to sleep")
+        return {"ok": True}
 
     # ----------------------------------------------------------------- launch
     async def prepare_launch(self, steam_appid: int, steam_name: str) -> Dict[str, Any]:

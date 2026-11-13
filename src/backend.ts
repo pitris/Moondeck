@@ -36,6 +36,11 @@ export interface Settings {
     quit_app_after: boolean;
     extra_args: string;
   };
+  power: {
+    wake_on_resume: boolean;
+    sleep_pc_on_suspend: boolean;
+    sleep_app_uuid: string;
+  };
   ui: {
     placement: Placement;
     label: string;
@@ -120,6 +125,8 @@ export const setMapping = callable<[steamAppId: number, appName: string | null, 
 export const getStatus = callable<[], Result<Status>>("status");
 export const hostStatus = callable<[], HostInfo>("host_status");
 export const detectMac = callable<[], Result<{ mac: string }>>("detect_mac");
+export const sleepPc = callable<[], Result<object>>("sleep_pc");
+export const prepareSleepApp = callable<[], Result<{ uuid: string }>>("prepare_sleep_app");
 export const wakeHost = callable<[], Result<{ sent: number }>>("wake_host");
 export const refreshApps = callable<[], Result<{ apps: ApolloApp[]; source: string; warnings: string[] }>>("refresh_apps");
 export const getApps = callable<[], Result<Settings["apps_cache"]>>("get_apps");
