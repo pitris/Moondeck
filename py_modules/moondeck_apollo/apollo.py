@@ -207,10 +207,20 @@ class ApolloWebClient:
                               "or the Legion Go is outside the allowed origin)")
         raise ApolloError("WEB_LOGIN_FAILED", f"Unexpected HTTP {status} from Apollo login")
 
-    def get_apps(self) -> List[Dict[str, Any]]:
+    def _api(self, method: str, path: str, body: Optional[Dict[str, Any]] = None) -> Tuple[int, bytes]:
+        """Authenticated request. Logs in when needed; a session that Apollo
+        dropped (it keeps a single one) is renewed once."""
         if not self.cookie and not self.use_basic:
             self.login()
-        status, _, payload = self._request("GET", "/api/apps")
+        status, _, payload = self._request(method, path, body)
+        if status == 401 and not self.use_basic:
+            self.cookie = None
+            self.login()
+            status, _, payload = self._request(method, path, body)
+        return status, payload
+
+    def get_apps(self) -> List[Dict[str, Any]]:
+        status, payload = self._api("GET", "/api/apps")
         if status == 401:
             raise ApolloError("WEB_LOGIN_FAILED", "Apollo web UI session was rejected")
         if status != 200:
@@ -233,18 +243,35 @@ class ApolloWebClient:
 
     def get_raw_apps(self) -> List[Dict[str, Any]]:
         """App definitions exactly as stored in Apollo's apps.json."""
-        if not self.cookie and not self.use_basic:
-            self.login()
-        status, _, payload = self._request("GET", "/api/apps")
+        return [a for a in (self._apps_tree().get("apps") or []) if isinstance(a, dict)]
+
+    def _apps_tree(self) -> Dict[str, Any]:
+        status, payload = self._api("GET", "/api/apps")
         if status != 200:
             raise ApolloError("WEB_ERROR", f"HTTP {status} from /api/apps")
         try:
-            return [a for a in (json.loads(payload).get("apps") or []) if isinstance(a, dict)]
+            tree = json.loads(payload)
         except ValueError as e:
             raise ApolloError("WEB_ERROR", f"Invalid JSON from /api/apps: {e}")
+        return tree if isinstance(tree, dict) else {}
+
+    def current_app_uuid(self) -> str:
+        """UUID of the app Apollo considers running ("" when none)."""
+        return str(self._apps_tree().get("current_app") or "")
+
+    def close_app(self) -> None:
+        """End Apollo's current app/session (same as "quit app" in Moonlight).
+
+        Games started through ``steam://`` are detached, so they keep running
+        on the PC; only Apollo's session (and its virtual display) ends.
+        """
+        status, payload = self._api("POST", "/api/apps/close", {})
+        if status != 200:
+            raise ApolloError("WEB_ERROR", f"Apollo could not end the session (HTTP {status}): "
+                                           f"{payload[:200].decode(errors='replace')}")
 
     def _save_app(self, body: Dict[str, Any], what: str) -> None:
-        status, _, payload = self._request("POST", "/api/apps", body)
+        status, payload = self._api("POST", "/api/apps", body)
         if status != 200:
             raise ApolloError("WEB_ERROR", f"Apollo refused to {what} the app (HTTP {status}): "
                                            f"{payload[:200].decode(errors='replace')}")
@@ -291,8 +318,10 @@ class ApolloWebClient:
         """Create the "Moondeck: Sleep PC" app if needed; returns its uuid."""
         for app in self.get_raw_apps():
             if app.get("name") == SLEEP_APP_NAME and app.get("uuid"):
-                if app.get("cmd") != SLEEP_APP_CMD:
-                    self._save_app(dict(app, cmd=SLEEP_APP_CMD), "update")
+                if app.get("cmd") != SLEEP_APP_CMD or app.get("auto-detach") is not False:
+                    updated = dict(app, cmd=SLEEP_APP_CMD)
+                    updated["auto-detach"] = False
+                    self._save_app(updated, "update")
                 return str(app["uuid"])
         self._save_app({
             "name": SLEEP_APP_NAME,
@@ -300,7 +329,9 @@ class ApolloWebClient:
             "cmd": SLEEP_APP_CMD,
             "exclude-global-prep-cmd": True,
             "elevated": False,
-            "auto-detach": True,
+            # Not auto-detached: when the command returns (after the PC woke
+            # up) Apollo considers the app finished, so nothing stays "running".
+            "auto-detach": False,
             "wait-all": False,
             "exit-timeout": 5,
             "prep-cmd": [],
@@ -316,9 +347,7 @@ class ApolloWebClient:
 
     def launch_app(self, uuid: str) -> None:
         """Start an Apollo app from the web API (works without a client streaming it)."""
-        if not self.cookie and not self.use_basic:
-            self.login()
-        status, _, payload = self._request("POST", "/api/apps/launch", {"uuid": uuid})
+        status, payload = self._api("POST", "/api/apps/launch", {"uuid": uuid})
         if status == 400 and b"Cannot find" in payload:
             raise ApolloError("APP_NOT_FOUND", "Apollo no longer has that app")
         if status != 200:

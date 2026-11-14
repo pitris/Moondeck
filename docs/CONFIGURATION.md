@@ -53,6 +53,13 @@ mapping only depends on the name.
 | `power.sleep_pc_on_suspend` | false | When the Legion goes to sleep **during a Moonlight stream**, put the PC to sleep right away. Needs Apollo web UI access. |
 | `power.sleep_app_uuid` | set automatically | The Apollo app used for sleeping. |
 
+Two independent triggers detect the Legion going to sleep (Steam's sleep
+manager with a suspend block, and the plain system notification); whichever
+fires first sends the request. Every step is recorded under **Settings →
+Diagnostics → Sleep and wake**, and a failed request is shown as a notification
+after the Legion wakes up. Before the next launch the plugin ends a leftover
+"Sleep PC" app in Apollo so Moonlight never asks to quit it.
+
 How PC sleep works: turning the option on adds an Apollo app **"Moondeck: Sleep PC"**
 (hidden from the game pickers) whose command waits 3 s and then calls Windows'
 `SetSuspendState('Suspend')`. That is real sleep, not hibernate. When you put the
@@ -79,6 +86,7 @@ the main monitor.
 | `moonlight.video_codec` | Moonlight default | `--video-codec auto/H.264/HEVC/AV1` |
 | `moonlight.hdr` | Moonlight default | `--hdr` / `--no-hdr` |
 | `moonlight.performance_overlay` | Moonlight default | `--performance-overlay` / `--no-performance-overlay` |
+| `moonlight.end_session_on_exit` | true | When a stream ends, the plugin ends Apollo's session (web API `POST /api/apps/close`, or `moonlight quit <host>` without web UI access), so Moonlight does not show the app as still running. Games started through Steam keep running on the PC. Skipped when the stream died because the Legion was asleep, so the next launch resumes straight away. |
 | `moonlight.quit_app_after` | false | `--quit-after` (quit the game on the PC when the stream ends) |
 | `moonlight.extra_args` | – | Appended verbatim (shell-style split) |
 

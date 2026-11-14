@@ -454,6 +454,7 @@ class ServiceTests(unittest.TestCase):
             app = [a for a in fake.apps if a["name"] == "Moondeck: Sleep PC"]
             self.assertEqual(len(app), 1)
             self.assertIn("SetSuspendState('Suspend'", app[0]["cmd"])
+            self.assertIs(app[0]["auto-detach"], False)
             self.assertEqual(self.svc.store.load()["power"]["sleep_app_uuid"], app[0]["uuid"])
             # preparing again does not duplicate
             run(self.svc.prepare_sleep_app())
@@ -470,6 +471,62 @@ class ServiceTests(unittest.TestCase):
             r = run(self.svc.prepare_launch(424242, "Some Game"))
             self.assertNotIn("Moondeck: Sleep PC", r.get("apps", []))
             self.assertNotIn("Moondeck: Sleep PC", r.get("candidates", []))
+
+    def test_sleep_uses_one_request_and_survives_a_dropped_login(self):
+        with FakeApollo() as fake:
+            self.configure(fake, username="admin", password="secret")
+            run(self.svc.prepare_sleep_app())
+            logins = fake.logins
+            self.assertTrue(run(self.svc.sleep_pc())["ok"])
+            self.assertEqual(fake.logins, logins, "the kept login must be reused when going to sleep")
+            fake.cookie = "SOMEONE-ELSE"  # e.g. the user logged in from a browser on the PC
+            self.assertTrue(run(self.svc.sleep_pc())["ok"])
+            self.assertEqual(fake.logins, logins + 1)
+            log = run(self.svc.power_log())
+            self.assertTrue(log["sleep_app_ready"])
+            self.assertTrue(any("PC sleep requested" in l for l in log["lines"]), log["lines"])
+
+    def test_sleep_failure_is_recorded(self):
+        with FakeApollo() as fake:
+            self.configure(fake, username="admin", password="secret")
+            run(self.svc.prepare_sleep_app())
+        # Apollo is gone now (PC off / unreachable)
+        r = run(self.svc.sleep_pc())
+        self.assertFalse(r["ok"])
+        self.assertTrue(any("PC sleep FAILED" in l for l in run(self.svc.power_log())["lines"]))
+
+    def test_stale_sleep_app_is_cleared_before_launch(self):
+        with FakeApollo() as fake:
+            self.configure(fake, username="admin", password="secret")
+            run(self.svc.prepare_sleep_app())
+            run(self.svc.sleep_pc())
+            self.assertTrue(fake.current_app)  # Apollo still lists Sleep PC as running
+            r = run(self.svc.prepare_launch(1091500, "Cyberpunk 2077"))
+            self.assertTrue(r["ok"], r)
+            self.assertEqual((fake.current_app, fake.closed), ("", 1))
+            # a running *game* is never closed by a launch
+            fake.current_app = "u3"
+            run(self.svc.prepare_launch(1091500, "Cyberpunk 2077"))
+            self.assertEqual((fake.current_app, fake.closed), ("u3", 1))
+
+    def test_end_session(self):
+        with FakeApollo() as fake:
+            self.configure(fake, username="admin", password="secret")
+            fake.current_app = "u3"
+            r = run(self.svc.end_session())
+            self.assertEqual((r["ok"], r["method"]), (True, "apollo_web"))
+            self.assertEqual((fake.current_app, fake.closed), ("", 1))
+            run(self.svc.save_settings({"moonlight": {"end_session_on_exit": False}}))
+            self.assertEqual(run(self.svc.end_session())["method"], "off")
+            self.assertEqual(fake.closed, 1)
+
+    def test_end_session_falls_back_to_moonlight_quit(self):
+        with FakeApollo() as fake:
+            self.configure(fake)  # no web UI access
+            r = run(self.svc.end_session())
+            self.assertEqual((r["ok"], r["method"]), (True, "moonlight"))
+            with open(os.environ["FAKE_ML_LOG"]) as f:
+                self.assertIn("quit 127.0.0.1", f.read())
 
     def test_unpaired_moonlight(self):
         with FakeApollo() as fake:

@@ -75,6 +75,15 @@ class Plugin:
     async def sleep_pc(self):
         return await self.service.sleep_pc()
 
+    async def power_event(self, message):
+        return await self.service.power_event(message)
+
+    async def power_log(self):
+        return await self.service.power_log()
+
+    async def end_session(self):
+        return await self.service.end_session()
+
     async def wake_host(self):
         return await self.service.wake_host()
 

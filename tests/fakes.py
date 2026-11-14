@@ -54,7 +54,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/apps":
             if not self._authed():
                 return self._send(401, b'{"status":false}')
-            return self._send(200, json.dumps({"apps": self.state.apps, "host_name": "GAMING-PC"}).encode())
+            return self._send(200, json.dumps({"apps": self.state.apps, "host_name": "GAMING-PC",
+                                               "current_app": self.state.current_app}).encode())
         self._send(404, b"{}")
 
     def do_POST(self) -> None:
@@ -64,7 +65,10 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             if self.state.basic_only:
                 return self._send(404, b"{}")
             if body.get("username") == "admin" and body.get("password") == "secret":
-                return self._send(200, b"", headers={"Set-Cookie": "auth=COOKIE123; Secure; SameSite=Strict; Path=/"})
+                self.state.logins += 1
+                self.state.cookie = f"COOKIE{self.state.logins}"
+                return self._send(200, b"", headers={
+                    "Set-Cookie": f"auth={self.state.cookie}; Secure; SameSite=Strict; Path=/"})
             return self._send(401, b"")
         if self.path == "/api/apps/launch":
             if not self._authed():
@@ -72,6 +76,15 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             if not any(a.get("uuid") == body.get("uuid") for a in self.state.apps):
                 return self._send(400, b'{"error":"Cannot find requested application"}')
             self.state.launched.append(body["uuid"])
+            self.state.current_app = body["uuid"]
+            return self._send(200, b'{"status":true}')
+        if self.path == "/api/apps/close":
+            if not self._authed():
+                return self._send(401, b"")
+            if self.headers.get("Content-Type") != "application/json":
+                return self._send(400, b"")
+            self.state.closed += 1
+            self.state.current_app = ""
             return self._send(200, b'{"status":true}')
         if self.path == "/api/apps":
             if not self._authed():
@@ -94,7 +107,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         self._send(404, b"{}")
 
     def _authed(self) -> bool:
-        if self.headers.get("Cookie") == "auth=COOKIE123":
+        if self.state.cookie and self.headers.get("Cookie") == f"auth={self.state.cookie}":
             return True
         # base64("admin:secret")
         return self.headers.get("Authorization") == "Basic YWRtaW46c2VjcmV0"
@@ -118,6 +131,10 @@ class FakeApollo:
         self.basic_only = basic_only
         self.requests: List[str] = []
         self.launched: List[str] = []
+        self.current_app = ""
+        self.closed = 0
+        self.logins = 0
+        self.cookie = ""  # Apollo keeps a single web session
         self._tmp = tempfile.TemporaryDirectory()
         cert = os.path.join(self._tmp.name, "cert.pem")
         key = os.path.join(self._tmp.name, "key.pem")
@@ -162,6 +179,9 @@ case "$1" in
     echo '"Hades II",3,false,false,false,false,"file:///x/3.png"'
     echo '"Hidden Thing",4,false,false,true,false,"file:///x/4.png"'
     echo '"Say "Hi", World",5,false,false,false,false,"file:///x/5.png"'
+    ;;
+  quit)
+    exit 0
     ;;
   stream)
     echo "streaming $3 from $2"

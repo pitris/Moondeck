@@ -32,6 +32,9 @@ Library → **Hidden** → "Moonlight (Apollo)" → ⚙ → **Manage** → **Rem
 * In the plugin: **Backup & uninstall** → pick a backup → **Restore**.
 * From a tarball: `bash scripts/restore-settings.sh ~/moondeck-apollo-settings-<time>.tar.gz`
 
+If you used the PC sleep option, Apollo also has an app called
+**Moondeck: Sleep PC**; delete it in Apollo's web UI if you no longer want it.
+
 Moonlight, its pairing, Apollo and any apps created on the PC are not touched by
 uninstalling. Apps the plugin added to Apollo stay in Apollo until you delete
 them in Apollo's web UI.

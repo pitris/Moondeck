@@ -3,6 +3,7 @@ import { toaster } from "@decky/api";
 import {
   Failure,
   cancelLaunch,
+  endSession,
   createApolloApp,
   createdMessage,
   lastSession,
@@ -14,7 +15,7 @@ import {
 import { settingsStore } from "./store";
 import { RUNNER_BASE_NAME, ensureRunner, isAnyGameRunning, launchRunner, waitForExit } from "./steam/runner";
 import { alertModal, ask, offlineModal, pickApp, showProgress } from "./components/modals";
-import { setStreaming } from "./power";
+import { resumedWithin, setStreaming } from "./power";
 import { ConfirmModal } from "@decky/ui";
 import { createElement } from "react";
 
@@ -202,6 +203,14 @@ async function watchSession(target: LaunchTarget, runnerAppId: number): Promise<
     await waitForExit(runnerAppId);
   } finally {
     setStreaming(false);
+  }
+  // End Apollo's session too, so Moonlight does not report the app as still
+  // running. Not when the stream just died because the Legion was asleep:
+  // then the session is kept so the next launch resumes straight away.
+  if ((settingsStore.current?.moonlight?.end_session_on_exit ?? true) && !resumedWithin(120000)) {
+    endSession()
+      .then((r) => log("info", r.ok ? `host session ended (${r.method})` : `could not end host session: ${r.message}`))
+      .catch((e) => log("warning", `could not end host session: ${String(e)}`));
   }
   returnState = { originAppId: target.appid, runnerAppId, since: Date.now(), phase: "exit", handled: false };
   const r = await lastSession();

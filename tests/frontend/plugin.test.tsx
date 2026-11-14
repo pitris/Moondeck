@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, ReactElement } from "react";
 import { renderToString } from "react-dom/server";
 import { backend, calls, routerHook } from "./mocks/decky-api";
-import { Navigation, findInReactTree, playSectionModule } from "./mocks/decky-ui";
+import { Navigation, contextMenus, findInReactTree, playSectionModule } from "./mocks/decky-ui";
 import { installFakeSteam, FakeSteam } from "./steam-env";
 
 // Interactive dialogs are replaced by programmable answers.
@@ -19,7 +19,7 @@ import { inject, patchLibraryApp, resetForTests } from "../../src/patches/librar
 import { launchWithMoonlight, onAppPageRendered } from "../../src/launcher";
 import { ensureRunner, removeRunner } from "../../src/steam/runner";
 import { settingsStore } from "../../src/store";
-import { MoonlightButton } from "../../src/components/MoonlightButton";
+import { MoonlightButton, showOptionsMenu } from "../../src/components/MoonlightButton";
 import { SettingsPage } from "../../src/components/SettingsPage";
 import plugin from "../../src/index";
 
@@ -27,7 +27,7 @@ const SETTINGS = {
   version: 1,
   host: { address: "192.168.1.50", moonlight_name: "GAMING-PC", http_port: 47989, mac: "AA:BB:CC:DD:EE:FF", wol_enabled: true, wol_broadcast: "255.255.255.255", wake_timeout: 90 },
   apollo_web: { enabled: false, port: 47990, username: "", password: "", password_set: false, cert_sha256: "", new_app_virtual_display: true },
-  moonlight: { flatpak_id: "com.moonlight_stream.Moonlight", custom_path: "", resolution: "", fps: "", bitrate_kbps: "", display_mode: "", video_codec: "", hdr: "", performance_overlay: "", quit_app_after: false, extra_args: "" },
+  moonlight: { flatpak_id: "com.moonlight_stream.Moonlight", custom_path: "", resolution: "", fps: "", bitrate_kbps: "", display_mode: "", video_codec: "", hdr: "", performance_overlay: "", quit_app_after: false, end_session_on_exit: true, extra_args: "" },
   power: { wake_on_resume: true, sleep_pc_on_suspend: false, sleep_app_uuid: "" },
   ui: { placement: "below_play", label: "Moonlight", rename_runner_per_launch: true, show_on_non_steam: true },
   runner: { shortcut_appid: 0 },
@@ -197,7 +197,37 @@ describe("current Steam layout: button next to Play", () => {
   it("the in-row button renders with a two-line label", () => {
     const html = renderToString(createElement(MoonlightButton, { appid: 1091500, name: "Cyberpunk 2077", isSteamGame: true, placement: "play_row" }));
     expect(html).toContain("mda-inrow");
-    expect(html).toContain("Stream from your PC");
+    expect(html.replace(/<!-- -->/g, "")).toContain("from GAMING-PC"); // same wording as Steam's "Stream from <PC>"
+  });
+});
+
+describe("options menu on the button", () => {
+  it("opens a Steam context menu with stream, mapping, wake/sleep and settings", async () => {
+    const launched: string[] = [];
+    const ctx = { name: "Cyberpunk 2077", pcName: "GAMING-PC", mapped: "Cyberpunk 2077", webEnabled: true,
+      launch: () => { launched.push("launch"); }, changeMapping: () => { launched.push("map"); } };
+    contextMenus.length = 0;
+    showOptionsMenu(ctx, globalThis as unknown as EventTarget);
+    expect(contextMenus).toHaveLength(1);
+    const html = renderToString(contextMenus[0]).replace(/<!-- -->/g, "");
+    for (const text of ["Moonlight · GAMING-PC", "Stream Cyberpunk 2077", "Change Apollo app (now: Cyberpunk 2077)", "Wake PC", "Put PC to sleep", "Moonlight settings"]) {
+      expect(html).toContain(text);
+    }
+    const items: any[] = [];
+    (function walk(n: any) { if (!n || typeof n !== "object") return; if (n.props?.onSelected) items.push(n); const c = n.props?.children; (Array.isArray(c) ? c : [c]).forEach(walk); })(contextMenus[0]);
+    items[0].props.onSelected();
+    items[1].props.onSelected();
+    expect(launched).toEqual(["launch", "map"]);
+    await items.find((i) => i.props.children === "Put PC to sleep").props.onSelected();
+    expect(calls.some((c) => c.route === "sleep_pc")).toBe(true);
+    await items.find((i) => i.props.children === "Wake PC").props.onSelected();
+    expect(calls.some((c) => c.route === "wake_host")).toBe(true);
+    // without Apollo web UI access the sleep entry is not offered
+    contextMenus.length = 0;
+    showOptionsMenu({ ...ctx, webEnabled: false, mapped: null }, globalThis as unknown as EventTarget);
+    const html2 = renderToString(contextMenus[0]);
+    expect(html2).not.toContain("Put PC to sleep");
+    expect(html2).toContain("Choose Apollo app");
   });
 });
 
@@ -247,6 +277,8 @@ describe("launch flow", () => {
     // wait for the background session watcher to see the exit
     await new Promise((r) => setTimeout(r, 2500));
     expect(calls.some((c) => c.route === "last_session")).toBe(true);
+    // the host session is ended too, so Moonlight does not report it as still running
+    expect(calls.some((c) => c.route === "end_session")).toBe(true);
   }, 10000);
 
   it("offline PC: user cancels -> nothing is launched", async () => {

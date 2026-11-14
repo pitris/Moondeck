@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { backend, calls } from "./mocks/decky-api";
 import { webpackModules } from "./mocks/decky-ui";
-import { registerPowerHandlers, setStreaming } from "../../src/power";
+import { hooks, registerPowerHandlers, resumedWithin, setStreaming } from "../../src/power";
+import { toasts } from "./mocks/decky-api";
 import { settingsStore } from "../../src/store";
 
 /** Simulated Steam sleep system: notifications + suspend blocks. */
-function fakeSleepSystem() {
+function fakeSleepSystem(opts: { manager?: boolean; system?: boolean; store?: boolean } = {}) {
   const sys = {
     blocks: 0,
     sleepRequests: 0,
@@ -21,7 +22,18 @@ function fakeSleepSystem() {
     RequestSleep() { sys.sleepRequests++; },
   };
   webpackModules.length = 0;
-  webpackModules.push(sys);
+  if (opts.manager !== false) webpackModules.push(sys);
+  const system = {
+    onSuspend: [] as (() => void)[],
+    onResume: [] as (() => void)[],
+    RegisterForOnSuspendRequest(cb: () => void) { system.onSuspend.push(cb); return { unregister() { system.onSuspend = []; } }; },
+    RegisterForOnResumeFromSuspend(cb: () => void) { system.onResume.push(cb); return { unregister() { system.onResume = []; } }; },
+  };
+  (globalThis as any).SteamClient = { System: opts.system === false ? {} : system };
+  if (opts.store === false) delete (globalThis as any).SuspendResumeStore;
+  // A real suspend/resume fires both notification paths.
+  sys.suspend = () => { sys.onSuspend.forEach((c) => c()); system.onSuspend.forEach((c) => c()); };
+  sys.resume = () => { sys.onResume.forEach((c) => c()); system.onResume.forEach((c) => c()); };
   return sys;
 }
 
@@ -98,6 +110,55 @@ describe("PC follows the Legion's sleep", () => {
     await flush();
     expect(calls.map((c) => c.route)).not.toContain("sleep_pc");
     expect(sys.sleepRequests).toBe(0);
+  });
+});
+
+describe("robustness and visibility", () => {
+  it("both triggers fire on a real suspend but the PC is asked only once", async () => {
+    backend.sleep_pc = () => ({ ok: true });
+    expect(hooks).toMatchObject({ manager: true, system: true, store: true });
+    setStreaming(true);
+    sys.suspend();
+    await flush();
+    expect(calls.filter((c) => c.route === "sleep_pc")).toHaveLength(1);
+    expect(sys.sleepRequests).toBe(1);
+  });
+
+  it("still asks the PC to sleep when only the plain system notification exists", async () => {
+    cleanup();
+    sys = fakeSleepSystem({ manager: false, store: false });
+    cleanup = registerPowerHandlers();
+    expect(hooks).toMatchObject({ manager: false, system: true, store: false });
+    backend.sleep_pc = () => ({ ok: true });
+    setStreaming(true);
+    sys.suspend();
+    await flush();
+    expect(calls.filter((c) => c.route === "sleep_pc")).toHaveLength(1);
+    expect(sys.sleepRequests).toBe(0); // no block was held, Steam continues on its own
+  });
+
+  it("writes the history and reports a failed sleep after waking up", async () => {
+    backend.sleep_pc = () => ({ ok: false, error: "WEB_UNREACHABLE", message: "Cannot reach Apollo web UI" });
+    toasts.length = 0;
+    setStreaming(true);
+    sys.suspend();
+    await flush();
+    const notes = calls.filter((c) => c.route === "power_event").map((c) => String(c.args[0]));
+    expect(notes.some((n) => n.includes("asking the PC to sleep"))).toBe(true);
+    expect(resumedWithin(60000)).toBe(false);
+    sys.resume();
+    await flush();
+    expect(resumedWithin(60000)).toBe(true);
+    expect(JSON.stringify(toasts)).toContain("could not be put to sleep: Cannot reach Apollo web UI");
+  });
+
+  it("explains in the history when the option is off", async () => {
+    settings({ sleep_pc_on_suspend: false });
+    setStreaming(true);
+    sys.suspend();
+    await flush();
+    expect(calls.map((c) => c.route)).not.toContain("sleep_pc");
+    expect(calls.filter((c) => c.route === "power_event").map((c) => String(c.args[0])).join()).toContain("PC sleep is off");
   });
 });
 

@@ -60,3 +60,10 @@ export const webpackModules: any[] = [];
 export function findModuleExport(filter: (m: any) => boolean) {
   return webpackModules.find((m) => filter(m));
 }
+
+// --- context menu -----------------------------------------------------------
+export const Menu = (p: AnyProps) => createElement("div", { "data-mock": "Menu" }, String(p.label ?? ""), p.children as ReactNode);
+export const MenuItem = (p: AnyProps) => createElement("div", { "data-mock": "MenuItem" }, p.children as ReactNode);
+export const MenuSeparator = () => createElement("hr");
+export const contextMenus: any[] = [];
+export const showContextMenu = (menu: unknown) => { contextMenus.push(menu); return { Hide() {} }; };

@@ -53,6 +53,9 @@ DEFAULTS: Dict[str, Any] = {
         "performance_overlay": "",
         # Quit the game on the PC when the stream session ends.
         "quit_app_after": False,
+        # When a stream ends, also end Apollo's session so nothing is left
+        # "running" on the host (the game itself keeps running on the PC).
+        "end_session_on_exit": True,
         "extra_args": "",
     },
     "power": {
@@ -175,6 +178,7 @@ def validate(data: Dict[str, Any]) -> Dict[str, Any]:
     _choice(ml, "hdr", TRISTATE)
     _choice(ml, "performance_overlay", TRISTATE)
     ml["quit_app_after"] = bool(ml["quit_app_after"])
+    ml["end_session_on_exit"] = bool(ml["end_session_on_exit"])
     ml["extra_args"] = str(ml["extra_args"]).strip()
 
     pw = d["power"]

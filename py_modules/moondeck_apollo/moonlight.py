@@ -153,3 +153,14 @@ async def list_apps(settings: Dict[str, Any], timeout: float = 45) -> List[Dict[
         err_code, message = classify_output(out)
         raise MoonlightError(err_code, message, out[-2000:])
     return apps
+
+
+async def quit_app(settings: Dict[str, Any], timeout: float = 25) -> None:
+    """End the host's current app with ``moonlight quit <host>`` (uses Moonlight's pairing)."""
+    host = host_identifier(settings)
+    if not host:
+        raise MoonlightError("NO_HOST", "No host configured")
+    code, out = await _run(base_command(settings) + ["quit", host], timeout, {"QT_QPA_PLATFORM": "offscreen"})
+    if code != 0:
+        err_code, message = classify_output(out)
+        raise MoonlightError(err_code, message, out[-2000:])

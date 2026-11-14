@@ -38,6 +38,8 @@ class Service:
         self.log = logger or logging.getLogger("moondeck_apollo")
         self._launch_lock = asyncio.Lock()
         self._cancelled = False
+        self._web: Optional[apollo.ApolloWebClient] = None
+        self._web_key: tuple = ()
         os.makedirs(runtime_dir, exist_ok=True)
 
     # ------------------------------------------------------------------ setup
@@ -205,9 +207,15 @@ class Service:
         return {"ok": True, "apps": apps, "source": source, "warnings": errors}
 
     def _web_client(self, s: Dict[str, Any]) -> apollo.ApolloWebClient:
+        """Web client that keeps its login, so time-critical calls (putting the
+        PC to sleep right before the handheld suspends) need a single request."""
         w = s["apollo_web"]
-        return apollo.ApolloWebClient(s["host"]["address"], w["port"], w["username"], w["password"],
-                                      pinned_sha256=w["cert_sha256"])
+        key = (s["host"]["address"], w["port"], w["username"], w["password"], w["cert_sha256"])
+        if self._web is None or self._web_key != key:
+            self._web = apollo.ApolloWebClient(s["host"]["address"], w["port"], w["username"], w["password"],
+                                               pinned_sha256=w["cert_sha256"])
+            self._web_key = key
+        return self._web
 
     def _web_apps(self, s: Dict[str, Any]) -> List[Dict[str, Any]]:
         client = self._web_client(s)
@@ -248,6 +256,40 @@ class Service:
         return result
 
     # ------------------------------------------------------------------ power
+    POWER_LOG = "power.log"
+
+    def power_note(self, message: str) -> None:
+        """Append to the small sleep/wake history shown under Diagnostics."""
+        self.log.info("power: %s", message)
+        path = os.path.join(self.runtime_dir, self.POWER_LOG)
+        try:
+            os.makedirs(self.runtime_dir, exist_ok=True)
+            lines: List[str] = []
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    lines = f.read().splitlines()[-59:]
+            lines.append(time.strftime("%Y-%m-%d %H:%M:%S") + "  " + message)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+        except OSError:
+            pass
+
+    async def power_event(self, message: str) -> Dict[str, Any]:
+        self.power_note(str(message)[:300])
+        return {"ok": True}
+
+    async def power_log(self) -> Dict[str, Any]:
+        path = os.path.join(self.runtime_dir, self.POWER_LOG)
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.read().splitlines()[-60:]
+        except OSError:
+            lines = []
+        s = self.store.load()
+        return {"ok": True, "lines": lines, "sleep_enabled": s["power"]["sleep_pc_on_suspend"],
+                "wake_enabled": s["power"]["wake_on_resume"], "web_enabled": s["apollo_web"]["enabled"],
+                "sleep_app_ready": bool(s["power"]["sleep_app_uuid"])}
+
     async def prepare_sleep_app(self) -> Dict[str, Any]:
         """Create the Sleep PC app now, so going to sleep later needs one request."""
         s = self.store.load()
@@ -256,14 +298,17 @@ class Service:
         try:
             uuid = await asyncio.to_thread(lambda: self._web_client(s).ensure_sleep_app())
         except apollo.ApolloError as e:
+            self.power_note(f"could not set up the Sleep PC app: {e.message}")
             return _err(e.code, e.message)
         self.store.update({"power": {"sleep_app_uuid": uuid}})
+        self.power_note("Sleep PC app is set up in Apollo")
         return {"ok": True, "uuid": uuid}
 
     async def sleep_pc(self) -> Dict[str, Any]:
         """Ask Apollo to run the Sleep PC app. Called right before the handheld suspends."""
         s = self.store.load()
         if not s["apollo_web"]["enabled"]:
+            self.power_note("PC sleep skipped: Apollo web UI access is off")
             return _err("WEB_DISABLED", "Apollo web UI access is off.")
 
         def run() -> str:
@@ -280,15 +325,49 @@ class Service:
             client.launch_app(uuid)
             return uuid
 
+        started = time.monotonic()
         try:
             uuid = await asyncio.to_thread(run)
         except apollo.ApolloError as e:
-            self.log.warning("sleep_pc failed: %s", e.message)
+            self.power_note(f"PC sleep FAILED: {e.message}")
             return _err(e.code, e.message)
         if uuid != s["power"]["sleep_app_uuid"]:
             self.store.update({"power": {"sleep_app_uuid": uuid}})
-        self.log.info("asked Apollo to put the PC to sleep")
+        self.power_note(f"PC sleep requested: Apollo accepted it ({time.monotonic() - started:.1f}s)")
         return {"ok": True}
+
+    def _clear_sleep_app(self, s: Dict[str, Any]) -> bool:
+        """If Apollo still lists the Sleep PC app as running, end it."""
+        uuid = s["power"]["sleep_app_uuid"]
+        if not (s["apollo_web"]["enabled"] and uuid):
+            return False
+        client = self._web_client(s)
+        if client.current_app_uuid() != uuid:
+            return False
+        client.close_app()
+        return True
+
+    async def end_session(self) -> Dict[str, Any]:
+        """End Apollo's session after a stream, so Moonlight does not report it as still running."""
+        s = self.store.load()
+        if not s["moonlight"]["end_session_on_exit"]:
+            return {"ok": True, "method": "off"}
+        errors: List[str] = []
+        if s["apollo_web"]["enabled"]:
+            try:
+                await asyncio.to_thread(lambda: self._web_client(s).close_app())
+                self.log.info("ended Apollo session via web API")
+                return {"ok": True, "method": "apollo_web"}
+            except apollo.ApolloError as e:
+                errors.append(e.message)
+        try:
+            await moonlight.quit_app(s)
+            self.log.info("ended Apollo session via moonlight quit")
+            return {"ok": True, "method": "moonlight"}
+        except moonlight.MoonlightError as e:
+            errors.append(e.message)
+        self.log.warning("could not end Apollo session: %s", "; ".join(errors))
+        return _err("END_SESSION_FAILED", "; ".join(errors))
 
     # ----------------------------------------------------------------- launch
     async def prepare_launch(self, steam_appid: int, steam_name: str) -> Dict[str, Any]:
@@ -350,6 +429,14 @@ class Service:
                             app_name=res.app_name,
                             apps=[a["name"] for a in refreshed["apps"] if not a.get("hidden")],
                             can_create=s["apollo_web"]["enabled"] and steam_appid > 0)
+
+        # After the PC was put to sleep, Apollo can still list "Sleep PC" as its
+        # running app; Moonlight would then ask to quit it. Clear that first.
+        try:
+            if await asyncio.to_thread(self._clear_sleep_app, s):
+                self.power_note("cleared the finished Sleep PC app in Apollo")
+        except apollo.ApolloError as e:
+            self.log.warning("could not check Apollo's running app: %s", e.message)
 
         self.install_runner()
         argv = moonlight.build_stream_argv(s, res.app_name)

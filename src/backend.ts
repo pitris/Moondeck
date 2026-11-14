@@ -34,6 +34,7 @@ export interface Settings {
     hdr: string;
     performance_overlay: string;
     quit_app_after: boolean;
+    end_session_on_exit: boolean;
     extra_args: string;
   };
   power: {
@@ -125,6 +126,10 @@ export const setMapping = callable<[steamAppId: number, appName: string | null, 
 export const getStatus = callable<[], Result<Status>>("status");
 export const hostStatus = callable<[], HostInfo>("host_status");
 export const detectMac = callable<[], Result<{ mac: string }>>("detect_mac");
+export interface PowerLog { lines: string[]; sleep_enabled: boolean; wake_enabled: boolean; web_enabled: boolean; sleep_app_ready: boolean }
+export const powerEvent = callable<[message: string], Result<object>>("power_event");
+export const powerLog = callable<[], Result<PowerLog>>("power_log");
+export const endSession = callable<[], Result<{ method: string }>>("end_session");
 export const sleepPc = callable<[], Result<object>>("sleep_pc");
 export const prepareSleepApp = callable<[], Result<{ uuid: string }>>("prepare_sleep_app");
 export const wakeHost = callable<[], Result<{ sent: number }>>("wake_host");

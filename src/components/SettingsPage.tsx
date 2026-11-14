@@ -19,6 +19,8 @@ import {
   detectMac,
   getStatus,
   importMoonlightHosts,
+  PowerLog,
+  powerLog,
   prepareSleepApp,
   sleepPc,
   listBackups,
@@ -30,6 +32,7 @@ import {
 } from "../backend";
 import { settingsStore, useSettings } from "../store";
 import { removeRunner } from "../steam/runner";
+import { hooks as powerHooks } from "../power";
 import { SettingChoice, SettingText, SettingToggle, saveOrToast } from "./fields";
 import { alertModal, ask } from "./modals";
 
@@ -246,6 +249,9 @@ const MoonlightPage = () => {
         <SettingChoice label="Video codec" value={m.video_codec} options={opt(["", "auto", "H.264", "HEVC", "AV1"])} toPatch={(v) => ({ moonlight: { video_codec: v } })} />
         <SettingChoice label="HDR" value={m.hdr} options={[["", "Moonlight default"], ["on", "On"], ["off", "Off"]]} toPatch={(v) => ({ moonlight: { hdr: v } })} />
         <SettingChoice label="Performance overlay" value={m.performance_overlay} options={[["", "Moonlight default"], ["on", "On"], ["off", "Off"]]} toPatch={(v) => ({ moonlight: { performance_overlay: v } })} />
+        <SettingToggle label="End the session on the PC when the stream ends"
+          description="So Moonlight does not show the app as still running. The game itself keeps running on the PC and can be resumed."
+          value={m.end_session_on_exit} toPatch={(v) => ({ moonlight: { end_session_on_exit: v } })} />
         <SettingToggle label="Quit the game on the PC when the stream ends" value={m.quit_app_after} toPatch={(v) => ({ moonlight: { quit_app_after: v } })} />
         <SettingText label="Extra Moonlight arguments" placeholder="--no-vsync" value={m.extra_args} toPatch={(v) => ({ moonlight: { extra_args: v } })} />
       </Section>
@@ -327,10 +333,27 @@ const MaintenancePage = () => {
 };
 
 const DiagnosticsPage = () => {
-  const [status, refresh] = useStatus();
+  const [status, refreshStatus] = useStatus();
+  const [power, setPower] = useState<PowerLog | null>(null);
+  const loadPower = async () => {
+    try {
+      const r = await powerLog();
+      if (r.ok) setPower(r);
+    } catch { /* shown as "no entries" */ }
+  };
+  useEffect(() => { loadPower(); }, []);
+  const refresh = async () => { await Promise.all([refreshStatus(), loadPower()]); };
   const last = status?.last_session;
+  const yes = (b: boolean | undefined) => (b ? "yes" : "NO");
   return (
     <DialogBody>
+      <Section title="Sleep and wake">
+        <Field label="Setup" description={power
+          ? `PC sleep: ${power.sleep_enabled ? "on" : "off"} · wake on resume: ${power.wake_enabled ? "on" : "off"} · Apollo web UI: ${power.web_enabled ? "on" : "off"} · Sleep PC app in Apollo: ${yes(power.sleep_app_ready)}`
+          : "Loading…"} />
+        <Field label="Steam sleep notifications" description={`sleep manager: ${yes(powerHooks.manager)} · system: ${yes(powerHooks.system)} · can hold sleep: ${yes(powerHooks.store)}`} />
+        <Field label="History (newest last)" description={<pre style={{ whiteSpace: "pre-wrap", fontSize: 11, maxHeight: 260, overflow: "auto" }}>{power?.lines.length ? power.lines.slice(-25).join("\n") : "(no sleep/wake events recorded yet)"}</pre>} />
+      </Section>
       <Section title="Last Moonlight session">
         {!last && <Field label="No session yet" />}
         {last && <>
